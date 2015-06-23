@@ -1,0 +1,44 @@
+{
+  "name": "port-control",
+  "description": "Freedom port control manifest",
+  "app": {
+    "script": "port-control.js"
+  },
+  "constraints": {
+    "isolation": "never"
+  },
+  "provides" : [
+    "port-control"
+  ],
+  "default": "port-control",
+  "api": {
+    "port-control": {
+      "probePmpSupport": {
+        "type": "method",
+        "value": ["string", "string"],
+        "ret": "boolean"
+      },
+
+      "sendPmpRequest": {
+        "type": "method",
+        "value": ["string", "number", "number"],
+        "ret": "object"
+      },
+
+      "closeSocket": {
+        "type": "method",
+        "value": ["object"],
+        "ret": []
+      },
+
+      "countdownReject": {
+        "type": "method",
+        "value": ["number", "string", "function"],
+        "ret": []
+      }
+    }
+  },
+  "permissions": [
+    "core.udpsocket"
+  ]
+}

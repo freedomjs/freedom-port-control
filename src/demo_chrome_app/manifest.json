@@ -1,0 +1,27 @@
+{
+  "name": "freedom-port-control-demo",
+  "description": "Opens ports through a NAT with NAT-PMP, PCP, and UPnP",
+  "version": "0.1",
+  "manifest_version": 2,
+  "sockets": {
+    "udp": {
+        "send": "*",
+        "bind": "*"
+    },
+    "tcp": {
+        "connect": "*"
+    },
+    "tcpServer" : {
+        "listen": "*"
+    }
+  },
+  "app": {
+    "background": {
+      "scripts": ["background.js"]
+    }
+  },
+  "permissions": [
+    "http://*/",
+    "system.network"
+  ]
+}
