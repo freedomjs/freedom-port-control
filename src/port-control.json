@@ -13,32 +13,51 @@
   "default": "port-control",
   "api": {
     "port-control": {
+      "openPortWithPmp": {
+        "type": "method",
+        "value": ["number", "number"],
+        "ret": "number"
+      },
+
       "probePmpSupport": {
         "type": "method",
-        "value": ["string", "string"],
+        "value": [],
         "ret": "boolean"
       },
 
-      "sendPmpRequest": {
+      "openPortWithPcp": {
         "type": "method",
-        "value": ["string", "number", "number"],
-        "ret": "object"
+        "value": ["number", "number"],
+        "ret": "number"
       },
 
-      "closeSocket": {
+      "probePcpSupport": {
         "type": "method",
-        "value": ["object"],
-        "ret": []
+        "value": [],
+        "ret": "boolean"
       },
 
-      "countdownReject": {
+      "openPortWithUpnp": {
         "type": "method",
-        "value": ["number", "string", "function"],
-        "ret": []
+        "value": ["number", "number"],
+        "ret": "number"
+      },
+
+      "probeUpnpSupport": {
+        "type": "method",
+        "value": [],
+        "ret": "boolean"
+      },
+
+      "getPrivateIp": {
+        "type": "method",
+        "value": [],
+        "ret": "string"
       }
     }
   },
   "permissions": [
-    "core.udpsocket"
+    "core.udpsocket",
+    "core.rtcpeerconnection"
   ]
 }
