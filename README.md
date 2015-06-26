@@ -40,6 +40,8 @@ portControl.openPortWithUpnp(55557, 55557);
 
 All of these methods return a promise that will resolve to the newly mapped external port number, or `-1` on failure. 
 
+They also automatically refresh the mapping every two minutes, unless `false` is passed in as the last argument.
+
 ### IP address
 
 The module can also determine the user's private IP address,
