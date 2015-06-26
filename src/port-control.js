@@ -9,8 +9,11 @@ var PortControl = function (dispatchEvent) {
 var routerIps = ['192.168.1.1', '192.168.2.1', '192.168.11.1',
   '192.168.0.1', '192.168.0.30', '192.168.0.50', '192.168.20.1',
   '192.168.30.1', '192.168.62.1', '192.168.100.1', '192.168.102.1',
-  '192.168.1.254', '192.168.10.1', '192.168.123.254', '192.168.4.1',
+  '192.168.1.2g54', '192.168.10.1', '192.168.123.254', '192.168.4.1',
   '10.0.1.1', '10.1.1.1', '10.0.0.138', '10.0.0.2', '10.0.0.138'];
+
+// TODO(kennysong): Refresh mapping
+// TODO(kennysong): Increase mapping lifetime
 
 /**
 * Opens a specified port in the NAT with NAT-PMP,
@@ -254,7 +257,10 @@ PortControl.prototype.openPortWithUpnp = function (internalPort, externalPort) {
   return this.getPrivateIp().then(function (privateIp) {
     return sendUpnpRequest(privateIp, internalPort, externalPort);
   }).then(function (response) {
-    console.log(response);
+    // If we received a UPnP response, assume it succeeded
+    // or the port is already open
+    // TODO(kennysong): Can there be an error response here?
+    return externalPort;
   }).catch(function (err) {
     console.log("UPnP failed at: " + err.message);  // Log details of where UPnP timed out
     return -1;

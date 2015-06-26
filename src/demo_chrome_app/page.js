@@ -11,8 +11,9 @@ function start(instance) {
   });
 
   document.getElementById('test-PMP').addEventListener('click', function () {
-    var intPort = 50001;
-    portControl.openPortWithPmp(intPort, intPort).then(function (extPort) {
+    var intPort = document.getElementById('internal-port-PMP').value;
+    var extPort = document.getElementById('external-port-PMP').value;
+    portControl.openPortWithPmp(intPort, extPort).then(function (extPort) {
       if (extPort !== -1) {
         document.getElementById('result-PMP').innerText =
             "NAT-PMP mapped internal port " + intPort +
@@ -24,8 +25,9 @@ function start(instance) {
   });
 
   document.getElementById('test-PCP').addEventListener('click', function () {
-    var intPort = 50001;
-    portControl.openPortWithPcp(intPort, intPort).then(function (extPort) {
+    var intPort = document.getElementById('internal-port-PCP').value;
+    var extPort = document.getElementById('external-port-PCP').value;
+    portControl.openPortWithPcp(intPort, extPort).then(function (extPort) {
       if (extPort !== -1) {
         document.getElementById('result-PCP').innerText =
             "PCP mapped internal port " + intPort +
@@ -37,8 +39,9 @@ function start(instance) {
   });
 
   document.getElementById('test-UPnP').addEventListener('click', function () {
-    var intPort = 50001;
-    portControl.openPortWithUpnp(intPort, intPort).then(function (extPort) {
+    var intPort = document.getElementById('internal-port-UPnP').value;
+    var extPort = document.getElementById('external-port-UPnP').value;
+    portControl.openPortWithUpnp(intPort, extPort).then(function (extPort) {
       if (extPort !== -1) {
         document.getElementById('result-UPnP').innerText =
             "UPnP mapped internal port " + intPort +
