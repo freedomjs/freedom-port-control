@@ -257,12 +257,11 @@ PortControl.prototype.openPortWithUpnp = function (internalPort, externalPort) {
   return this.getPrivateIp().then(function (privateIp) {
     return sendUpnpRequest(privateIp, internalPort, externalPort);
   }).then(function (response) {
-    // If we received a UPnP response, assume it succeeded
-    // or the port is already open
-    // TODO(kennysong): Can there be an error response here?
+    // Success response to AddPortMapping
     return externalPort;
   }).catch(function (err) {
-    console.log("UPnP failed at: " + err.message);  // Log details of where UPnP timed out
+    // Either time out, runtime error, or error response to AddPortMapping
+    console.log("UPnP failed at: " + err.message);
     return -1;
   });
 };
@@ -445,7 +444,17 @@ PortControl.prototype.sendAddPortMapping = function (controlUrl, privateIp, inte
 
     // Send the AddPortMapping request
     xhr.onreadystatechange = function () {
-      if (xhr.readyState === 4) { F(xhr.responseText); }
+      if (xhr.readyState === 4 && xhr.status === 200) {
+        // Success response to AddPortMapping
+        F(xhr.responseText);
+      } else if (xhr.readyState === 4 && xhr.status === 500) {
+        // Error response to AddPortMapping
+        var responseText = xhr.responseText;
+        var startIndex = responseText.indexOf('<errorDescription>') + 18;
+        var endIndex = responseText.indexOf('</errorDescription>', startIndex);
+        var errorDescription = responseText.substring(startIndex, endIndex);
+        R(new Error('AddPortMapping Error: ' + errorDescription));
+      }
     };
     xhr.send(apm);
   });
