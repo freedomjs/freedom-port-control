@@ -20,7 +20,6 @@ There are two types of methods: probing and control. Probing methods allow you t
 To run all the NAT probing tests,
 
 ```
-// Probe for all port control protocols support
 portControl.probeProtocolSupport();
 ```
 
@@ -37,10 +36,9 @@ All of these methods return a promise that will resolve to a boolean value.
 
 ### Control methods
 
-To add a NAT port mapping,
+To add a NAT port mapping with any protocol available,
 
 ```
-// Open a port with any protocol available
 portControl.addMapping(50000, 50000);
 ```
 
