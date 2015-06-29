@@ -44,10 +44,10 @@ They also automatically refresh the mapping every two minutes, unless `false` is
 
 ### IP address
 
-The module can also determine the user's private IP address,
+The module can also determine the user's private IP addresses (more than one if there are multiple active network interfaces),
 
 ```
-portControl.getPrivateIp();
+portControl.getPrivateIps();
 ```
 
-This returns a promise that will resolve to an IP address string, or reject with an error.
+This returns a promise that will resolve to an array of IP address strings, or reject with an error.
