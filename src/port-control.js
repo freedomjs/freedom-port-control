@@ -12,7 +12,30 @@ var routerIps = ['192.168.1.1', '192.168.2.1', '192.168.11.1',
   '192.168.0.1', '192.168.0.30', '192.168.0.50', '192.168.20.1',
   '192.168.30.1', '192.168.62.1', '192.168.100.1', '192.168.102.1',
   '192.168.1.254', '192.168.10.1', '192.168.123.254', '192.168.4.1',
-  '10.0.1.1', '10.1.1.1', '10.0.0.138', '10.0.0.2', '10.0.0.138'];
+  '10.0.1.1', '10.1.1.1', '10.0.0.13', '10.0.0.2', '10.0.0.138'];
+
+/**
+* Adds a port mapping through the NAT with any protocol that works
+* @public
+* @method addMapping
+* @param {string} internalPort The internal port on the computer to map to
+* @param {string} externalPort The external port on the router to map to
+* @param {boolean} refresh (Optional) Whether to setInterval to refresh the mapping,
+* automatically set to true by the openPortWith* methods() if undefined
+* @return {Promise<number>} A promise for the external port returned by the NAT, -1 if failed
+**/
+PortControl.prototype.addMapping = function (internalPort, externalPort, refresh) {
+  var openPortWithPcp = this.openPortWithPcp.bind(this);
+  var openPortWithUpnp = this.openPortWithUpnp.bind(this);
+
+  return this.openPortWithPmp(internalPort, externalPort).then(function (responsePort) {
+    if (responsePort !== -1) { return responsePort; }
+    else { return openPortWithPcp(internalPort, externalPort, refresh); }
+  }).then(function (responsePort) {
+    if (responsePort !== -1) { return responsePort; }
+    else { return openPortWithUpnp(internalPort, externalPort, refresh); }
+  });
+};
 
 /**
 * Probes the NAT for NAT-PMP, PCP, and UPnP support,

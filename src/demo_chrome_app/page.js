@@ -1,6 +1,8 @@
+var portControl;
+
 function start(instance) {
   console.log('Freedom and port-control loaded. In start().');
-  var portControl = instance();
+  portControl = instance();
 
   document.getElementById('test-IP').addEventListener('click', function () {
     portControl.getPrivateIps().then(function (privateIp) {
@@ -55,6 +57,20 @@ function start(instance) {
             " to external port " + extPort;
       } else {
         document.getElementById('result-UPnP').innerText = "UPnP failure. (Check console for details)";
+      }
+    });
+  });
+
+  document.getElementById('test-any').addEventListener('click', function () {
+    var intPort = document.getElementById('internal-port-any').value;
+    var extPort = document.getElementById('external-port-any').value;
+    portControl.addMapping(intPort, extPort, false).then(function (extPort) {
+      if (extPort !== -1) {
+        document.getElementById('result-any').innerText =
+            "Internal port " + intPort +
+            " is mapped to external port " + extPort;
+      } else {
+        document.getElementById('result-any').innerText = "All protocols failed.";
       }
     });
   });

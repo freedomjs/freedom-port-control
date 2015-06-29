@@ -13,6 +13,12 @@
   "default": "port-control",
   "api": {
     "port-control": {
+      "addMapping": {
+        "type": "method",
+        "value": ["number", "number", "boolean"],
+        "ret": "number"
+      },
+
       "probeProtocolSupport": {
         "type": "method",
         "value": [],
