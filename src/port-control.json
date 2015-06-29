@@ -19,6 +19,11 @@
         "ret": "number"
       },
 
+      "releaseMapping": {
+        "type": "method",
+        "value": ["number"],
+      },
+
       "probeProtocolSupport": {
         "type": "method",
         "value": [],
