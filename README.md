@@ -47,9 +47,9 @@ This method returns a promise that will resolve to the newly mapped external por
 You can also add a port mapping with a specific protocol:
 
 ```
-portControl.openPortWithPmp(55555, 55555);
-portControl.openPortWithPcp(55556, 55556);
-portControl.openPortWithUpnp(55557, 55557);
+portControl.addMappingPmp(55555, 55555);
+portControl.addMappingPcp(55556, 55556);
+portControl.addMappingUpnp(55557, 55557);
 ```
 
 All of these methods return the same promise as `addMapping`, and refreshes with the default final parameter.
