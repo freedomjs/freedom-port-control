@@ -18,6 +18,15 @@ There are two types of methods: probing and control. Probing methods allow you t
 ### Probing methods
 
 ```
+// Probe for all port control protocols support
+portControl.probeProtocolSupport();
+```
+
+This method resolves to an object of the form `{"natPmp": true, "pcp": false, "upnp": true}`.
+
+You can also probe for a specific protocol:
+
+```
 // Probe for NAT-PMP support
 portControl.probePmpSupport();
 // Probe for PCP support
