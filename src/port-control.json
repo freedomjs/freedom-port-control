@@ -21,7 +21,7 @@
 
       "releaseMapping": {
         "type": "method",
-        "value": ["number"],
+        "value": ["number"]
       },
 
       "probeProtocolSupport": {

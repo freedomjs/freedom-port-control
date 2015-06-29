@@ -31,15 +31,14 @@ var mappingRefreshTimers = {};
 * @return {Promise<number>} A promise for the external port returned by the NAT, -1 if failed
 **/
 PortControl.prototype.addMapping = function (intPort, extPort, refresh) {
-  var addMappingPcp = this.addMappingPcp.bind(this);
-  var addMappingUpnp = this.addMappingUpnp.bind(this);
+  var _this = this;
 
-  return this.addMappingPmp(intPort, extPort, refresh).then(function (responsePort) {
+  return _this.addMappingPmp(intPort, extPort, refresh).then(function (responsePort) {
     if (responsePort !== -1) { return responsePort; }
-    else { return addMappingPcp(intPort, extPort, refresh); }
+    else { return _this.addMappingPcp(intPort, extPort, refresh); }
   }).then(function (responsePort) {
     if (responsePort !== -1) { return responsePort; }
-    else { return addMappingUpnp(intPort, extPort, refresh); }
+    else { return _this.addMappingUpnp(intPort, extPort, refresh); }
   });
 };
 
@@ -88,15 +87,13 @@ PortControl.prototype.addMappingPmp = function (intPort, extPort, refresh) {
   var _this = this;
 
   function _addMappingPmp() {
-    var sendPmpRequest = _this.sendPmpRequest.bind(_this);
-
     return _this.getPrivateIps().then(function (privateIps) {
       // Return an array of ArrayBuffers, which are the responses of
       // sendPmpRequest() calls on all the router IPs. An error result
       // is caught and re-passed as null.
       var privateIp = privateIps[0];
       return Promise.all(routerIps.map(function (routerIp) {
-        return sendPmpRequest(routerIp, privateIp, intPort, extPort).
+        return _this.sendPmpRequest(routerIp, privateIp, intPort, extPort).
             then(function (pmpResponse) { return pmpResponse; }).
             catch(function (err) { return null; });
       }));
@@ -155,7 +152,7 @@ PortControl.prototype.probePmpSupport = function () {
 */
 PortControl.prototype.sendPmpRequest = function (routerIp, privateIp, intPort, extPort) {
   var socket;
-  var closeSocket = this.closeSocket;
+  var _this = this;
 
   var _sendPmpRequest = new Promise(function (F, R) {
     var mappingLifetime = 7200;  // 2 hours in seconds
@@ -163,7 +160,7 @@ PortControl.prototype.sendPmpRequest = function (routerIp, privateIp, intPort, e
 
     // Fulfill when we get any reply (failure is on timeout in wrapper function)
     socket.on('onData', function (pmpResponse) {
-      closeSocket(socket);
+      _this.closeSocket(socket);
       F(pmpResponse.data);
     });
 
@@ -193,7 +190,7 @@ PortControl.prototype.sendPmpRequest = function (routerIp, privateIp, intPort, e
   // Give _sendPmpRequest 2 seconds before timing out
   return Promise.race([
     this.countdownReject(2000, 'No NAT-PMP response', function () {
-      closeSocket(socket);
+      _this.closeSocket(socket);
     }),
     _sendPmpRequest
   ]);
@@ -213,15 +210,13 @@ PortControl.prototype.addMappingPcp = function (intPort, extPort, refresh) {
   var _this = this;
 
   var _addMappingPcp = function () {
-    var sendPcpRequest = _this.sendPcpRequest.bind(_this);
-
     return _this.getPrivateIps().then(function (privateIps) {
       var privateIp = privateIps[0];
       // Return an array of ArrayBuffers, which are the responses of
       // sendPcpRequest() calls on all the router IPs. An error result
       // is caught and re-passed as null.
       return Promise.all(routerIps.map(function (routerIp) {
-        return sendPcpRequest(routerIp, privateIp, intPort, extPort).
+        return _this.sendPcpRequest(routerIp, privateIp, intPort, extPort).
             then(function (pcpResponse) { return pcpResponse; }).
             catch(function (err) { return null; });
       }));
@@ -280,8 +275,7 @@ PortControl.prototype.probePcpSupport = function () {
 */
 PortControl.prototype.sendPcpRequest = function (routerIp, privateIp, intPort, extPort) {
   var socket;
-  var closeSocket = this.closeSocket;
-  var randInt = this.randInt;
+  var _this = this;
 
   var _sendPcpRequest = new Promise(function (F, R) {
     var mappingLifetime = 7200;  // 2 hours in seconds
@@ -289,7 +283,7 @@ PortControl.prototype.sendPcpRequest = function (routerIp, privateIp, intPort, e
 
     // Fulfill when we get any reply (failure is on timeout in wrapper function)
     socket.on('onData', function (pcpResponse) {
-      closeSocket(socket);
+      _this.closeSocket(socket);
       F(pcpResponse.data);
     });
 
@@ -321,9 +315,9 @@ PortControl.prototype.sendPcpRequest = function (routerIp, privateIp, intPort, e
       pcpView.setInt8(22, ipOctets[2]);
       pcpView.setInt8(23, ipOctets[3]);
       // Mapping Nonce (12 bytes)
-      pcpView.setInt32(24, randInt(0, 0xffffffff), false);
-      pcpView.setInt32(28, randInt(0, 0xffffffff), false);
-      pcpView.setInt32(32, randInt(0, 0xffffffff), false);
+      pcpView.setInt32(24, _this.randInt(0, 0xffffffff), false);
+      pcpView.setInt32(28, _this.randInt(0, 0xffffffff), false);
+      pcpView.setInt32(32, _this.randInt(0, 0xffffffff), false);
       // Protocol (1 byte)
       pcpView.setInt8(36, 17);
       // Reserved (3 bytes)
@@ -345,7 +339,7 @@ PortControl.prototype.sendPcpRequest = function (routerIp, privateIp, intPort, e
   // Give _sendPcpRequest 2 seconds before timing out
   return Promise.race([
     this.countdownReject(2000, 'No PCP response', function () {
-      closeSocket(socket);
+      _this.closeSocket(socket);
     }),
     _sendPcpRequest
   ]);
@@ -365,11 +359,9 @@ PortControl.prototype.addMappingUpnp = function (intPort, extPort, refresh) {
   var _this = this;
 
   var _addMappingUpnp = function () {
-    var sendUpnpRequest = _this.sendUpnpRequest.bind(_this);
-
     return _this.getPrivateIps().then(function (privateIps) {
       var privateIp = privateIps[0];
-      return sendUpnpRequest(privateIp, intPort, extPort);
+      return _this.sendUpnpRequest(privateIp, intPort, extPort);
     }).then(function (response) {
       // Success response to AddPortMapping
       return extPort;
@@ -420,18 +412,19 @@ PortControl.prototype.probeUpnpSupport = function () {
 * @return {Promise<string>} A promise that fulfills with the UPnP response string, or rejects on timeout
 */
 PortControl.prototype.sendUpnpRequest = function (privateIp, intPort, extPort) {
-  var sendSsdpRequest = this.sendSsdpRequest.bind(this);
-  var sendAddPortMapping = this.sendAddPortMapping.bind(this);
-  var fetchControlUrl = this.fetchControlUrl.bind(this);
+  var _this = this;
 
   return new Promise(function (F, R) {
-    sendSsdpRequest(privateIp).
-        then(fetchControlUrl).
-        then(function (controlUrl) {
-          return sendAddPortMapping(controlUrl, privateIp, intPort, extPort);
-        }).
-        then(function (result) { F(result); }).
-        catch(function (err) { R(err); });
+    _this.sendSsdpRequest(privateIp).then(function (ssdpResponse) {
+      return _this.fetchControlUrl.call(_this, ssdpResponse);
+    }).then(function (controlUrl) {
+      return _this.sendAddPortMapping.call(_this, controlUrl, privateIp,
+                                           intPort, extPort);
+    }).then(function (result) {
+      F(result);
+    }).catch(function (err) {
+      R(err);
+    });
   });
 };
 
@@ -444,13 +437,14 @@ PortControl.prototype.sendUpnpRequest = function (privateIp, intPort, extPort) {
 */
 PortControl.prototype.sendSsdpRequest = function (privateIp) {
   var socket;
-  var closeSocket = this.closeSocket;
+  var _this = this;
+
   var _sendSsdpRequest = new Promise(function (F, R) {
     socket = freedom['core.udpsocket']();
 
     // Fulfill when we get any reply (failure is on timeout or invalid parsing)
     socket.on('onData', function (ssdpResponse) {
-      closeSocket(socket);
+      _this.closeSocket(socket);
       F(ssdpResponse.data);
     });
 
@@ -464,15 +458,15 @@ PortControl.prototype.sendSsdpRequest = function (privateIp) {
                     'ST: urn:schemas-upnp-org:device:InternetGatewayDevice:1';
       // TODO(kennysong): Use the arraybuffers module?
       // var ssdpBuffer = arraybuffers.stringToArrayBuffer(ssdpStr);
-      var ssdpBuffer = this.stringToArrayBuffer(ssdpStr);
+      var ssdpBuffer = _this.stringToArrayBuffer(ssdpStr);
       socket.sendTo(ssdpBuffer, '239.255.255.250', 1900);
     });
   });
 
   // Give _sendSsdpRequest 1 second before timing out
   return Promise.race([
-    this.countdownReject(1000, 'SSDP time out', function () {
-      closeSocket(socket);
+    _this.countdownReject(1000, 'SSDP time out', function () {
+      _this.closeSocket(socket);
     }),
     _sendSsdpRequest
   ]);
@@ -486,10 +480,12 @@ PortControl.prototype.sendSsdpRequest = function (privateIp) {
  * @return {string} The string of the control URL for the router
  */
 PortControl.prototype.fetchControlUrl = function (ssdpResponse) {
+  var _this = this;
+
   var _fetchControlUrl = new Promise(function (F, R) {
     // Get UPnP device profile URL from the LOCATION header
     // TODO(kennysong): Use arraybuffers module?
-    var ssdpStr = this.arrayBufferToString(ssdpResponse);
+    var ssdpStr = _this.arrayBufferToString(ssdpResponse);
     var startIndex = ssdpStr.indexOf('LOCATION: ') + 10;
     var endIndex = ssdpStr.indexOf('\n', startIndex);
     var locationUrl = ssdpStr.substring(startIndex, endIndex);
@@ -531,7 +527,7 @@ PortControl.prototype.fetchControlUrl = function (ssdpResponse) {
 
   // Give _fetchControlUrl 1 second before timing out
   return Promise.race([
-    this.countdownReject(1000, 'Time out when retrieving description XML'),
+    _this.countdownReject(1000, 'Time out when retrieving description XML'),
     _fetchControlUrl
   ]);
 };
@@ -687,14 +683,14 @@ PortControl.prototype.randInt = function (min, max) {
 * @param {ArrayBuffer} buffer ArrayBuffer to convert
 * @return {string} A string converted from the ArrayBuffer
 */
-function arrayBufferToString(buffer) {
+PortControl.prototype.arrayBufferToString = function (buffer) {
     var bytes = new Uint8Array(buffer);
     var a = [];
     for (var i = 0; i < bytes.length; ++i) {
         a.push(String.fromCharCode(bytes[i]));
     }
     return a.join('');
-}
+};
 
 /**
 * Convert a UTF-8 string to an ArrayBuffer
@@ -703,14 +699,14 @@ function arrayBufferToString(buffer) {
 * @param {string} s String to convert
 * @return {ArrayBuffer} An ArrayBuffer containing the string data
 */
-function stringToArrayBuffer(s) {
+PortControl.prototype.stringToArrayBuffer = function (s) {
     var buffer = new ArrayBuffer(s.length);
     var bytes = new Uint8Array(buffer);
     for (var i = 0; i < s.length; ++i) {
         bytes[i] = s.charCodeAt(i);
     }
     return buffer;
-}
+};
 
 if (typeof freedom !== 'undefined') {
   freedom().providePromises(PortControl);
