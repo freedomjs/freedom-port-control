@@ -7,12 +7,6 @@
     "udp": {
         "send": "*",
         "bind": "*"
-    },
-    "tcp": {
-        "connect": "*"
-    },
-    "tcpServer" : {
-        "listen": "*"
     }
   },
   "app": {

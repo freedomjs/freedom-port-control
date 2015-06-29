@@ -15,7 +15,7 @@
     "port-control": {
       "openPortWithPmp": {
         "type": "method",
-        "value": ["number", "number"],
+        "value": ["number", "number", "boolean"],
         "ret": "number"
       },
 
@@ -27,7 +27,7 @@
 
       "openPortWithPcp": {
         "type": "method",
-        "value": ["number", "number"],
+        "value": ["number", "number", "boolean"],
         "ret": "number"
       },
 
@@ -39,7 +39,7 @@
 
       "openPortWithUpnp": {
         "type": "method",
-        "value": ["number", "number"],
+        "value": ["number", "number", "boolean"],
         "ret": "number"
       },
 
@@ -49,10 +49,10 @@
         "ret": "boolean"
       },
 
-      "getPrivateIp": {
+      "getPrivateIps": {
         "type": "method",
         "value": [],
-        "ret": "string"
+        "ret": ["array", "string"]
       }
     }
   },

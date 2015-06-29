@@ -3,8 +3,8 @@ function start(instance) {
   var portControl = instance();
 
   document.getElementById('test-IP').addEventListener('click', function () {
-    portControl.getPrivateIp().then(function (privateIp) {
-      document.getElementById('result-IP').innerText = "Your private IP address is: " + privateIp;
+    portControl.getPrivateIps().then(function (privateIp) {
+      document.getElementById('result-IP').innerText = "Your private IP addresses are: " + privateIp;
     }).catch(function (err) {
       document.getElementById('result-IP').innerText = err.message;
     });
@@ -13,7 +13,7 @@ function start(instance) {
   document.getElementById('test-PMP').addEventListener('click', function () {
     var intPort = document.getElementById('internal-port-PMP').value;
     var extPort = document.getElementById('external-port-PMP').value;
-    portControl.openPortWithPmp(intPort, extPort).then(function (extPort) {
+    portControl.openPortWithPmp(intPort, extPort, false).then(function (extPort) {
       if (extPort !== -1) {
         document.getElementById('result-PMP').innerText =
             "NAT-PMP mapped internal port " + intPort +
@@ -27,7 +27,7 @@ function start(instance) {
   document.getElementById('test-PCP').addEventListener('click', function () {
     var intPort = document.getElementById('internal-port-PCP').value;
     var extPort = document.getElementById('external-port-PCP').value;
-    portControl.openPortWithPcp(intPort, extPort).then(function (extPort) {
+    portControl.openPortWithPcp(intPort, extPort, false).then(function (extPort) {
       if (extPort !== -1) {
         document.getElementById('result-PCP').innerText =
             "PCP mapped internal port " + intPort +
@@ -41,13 +41,13 @@ function start(instance) {
   document.getElementById('test-UPnP').addEventListener('click', function () {
     var intPort = document.getElementById('internal-port-UPnP').value;
     var extPort = document.getElementById('external-port-UPnP').value;
-    portControl.openPortWithUpnp(intPort, extPort).then(function (extPort) {
+    portControl.openPortWithUpnp(intPort, extPort, false).then(function (extPort) {
       if (extPort !== -1) {
         document.getElementById('result-UPnP').innerText =
             "UPnP mapped internal port " + intPort +
             " to external port " + extPort;
       } else {
-        document.getElementById('result-UPnP').innerText = "UPnP failure.";
+        document.getElementById('result-UPnP').innerText = "UPnP failure. (Check console for details)";
       }
     });
   });

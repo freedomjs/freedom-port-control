@@ -1,3 +1,5 @@
+// var ipaddr = require('ipaddr.js');
+
 var PortControl = function (dispatchEvent) {
   this.dispatchEvent = dispatchEvent;
 };
@@ -26,10 +28,11 @@ PortControl.prototype.openPortWithPmp = function (internalPort, externalPort, re
   function _openPortWithPmp() {
     var sendPmpRequest = this.sendPmpRequest.bind(this);
 
-    return this.getPrivateIp().then(function (privateIp) {
+    return this.getPrivateIps().then(function (privateIps) {
       // Return an array of ArrayBuffers, which are the responses of
       // sendPmpRequest() calls on all the router IPs. An error result
       // is caught and re-passed as null.
+      var privateIp = privateIps[0];
       return Promise.all(routerIps.map(function (routerIp) {
         return sendPmpRequest(routerIp, privateIp, internalPort, externalPort).
             then(function (pmpResponse) { return pmpResponse; }).
@@ -143,7 +146,8 @@ PortControl.prototype.openPortWithPcp = function (internalPort, externalPort, re
   var _openPortWithPcp = function () {
     var sendPcpRequest = this.sendPcpRequest.bind(this);
 
-    return this.getPrivateIp().then(function (privateIp) {
+    return this.getPrivateIps().then(function (privateIps) {
+      var privateIp = privateIps[0];
       // Return an array of ArrayBuffers, which are the responses of
       // sendPcpRequest() calls on all the router IPs. An error result
       // is caught and re-passed as null.
@@ -286,7 +290,8 @@ PortControl.prototype.openPortWithUpnp = function (internalPort, externalPort, r
   var _openPortWithUpnp = function () {
     var sendUpnpRequest = this.sendUpnpRequest.bind(this);
 
-    return this.getPrivateIp().then(function (privateIp) {
+    return this.getPrivateIps().then(function (privateIps) {
+      var privateIp = privateIps[0];
       return sendUpnpRequest(privateIp, internalPort, externalPort);
     }).then(function (response) {
       // Success response to AddPortMapping
@@ -509,51 +514,44 @@ PortControl.prototype.sendAddPortMapping = function (controlUrl, privateIp, inte
 };
 
 /**
-* Return the private IP address of the computer
+* Return the private IP addresses of the computer
 * @public
-* @method getPrivateIp
-* @return {Promise<string>} A promise that fulfills with the IP address, or rejects on timeout
+* @method getPrivateIps
+* @return {Promise<string>} A promise that fulfills with a list of IP address, or rejects on timeout
 */
-PortControl.prototype.getPrivateIp = function () {
-  var _getPrivateIp = new Promise(function (F, R) {
-    var pc = freedom['core.rtcpeerconnection']({
-      iceServers: [
-        {urls: ['stun:stun.l.google.com:19302']},
-        {urls: ['stun:stun1.l.google.com:19302']},
-        {urls: ['stun:stun2.l.google.com:19302']},
-        {urls: ['stun:stun3.l.google.com:19302']},
-        {urls: ['stun:stun4.l.google.com:19302']},
-        {urls: ['stun:stun.services.mozilla.com']},
-        {urls: ['stun:stun.stunprotocol.org']}
-      ]
-    });
+PortControl.prototype.getPrivateIps = function () {
+  var privateIps = [];
+  var pc = freedom['core.rtcpeerconnection']({iceServers: []});
 
-    // One of the ICE candidates is the internal host IP; return it
-    pc.on('onicecandidate', function (candidate) {
-      if (candidate.candidate) {
-        var cand = candidate.candidate.candidate.split(' ');
-        if (cand[7] === 'host') {
-          var internalIp = cand[4];
-          // TODO(kennysong): Use ipaddr.js here
-          // if (ipaddr.IPv4.isValid(internalIp)) {
-          if (internalIp.match(/^(?:(?:25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)\.){3}(?:25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)$/).length > 0) {
-            F(internalIp);
+  // Find all the ICE candidates that are "host" candidates
+  pc.on('onicecandidate', function (candidate) {
+    if (candidate.candidate) {
+      var cand = candidate.candidate.candidate.split(' ');
+      if (cand[7] === 'host') {
+        var privateIp = cand[4];
+        // TODO(kennysong): Use ipaddr.js here
+        // if (ipaddr.IPv4.isValid(privateIp)) {
+        if (privateIp.match(/^(?:(?:25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)\.){3}(?:25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)$/).length > 0) {
+          if (privateIps.indexOf(privateIp) == -1) {
+            privateIps.push(privateIp);
           }
         }
       }
-    });
-
-    // Set up the PeerConnection to start generating ICE candidates
-    pc.createDataChannel('dummy data channel').
-        then(pc.createOffer).
-        then(pc.setLocalDescription);
+    }
   });
 
-  // Give _getPrivateIp 2 seconds to run before timing out
-  return Promise.race([
-    this.countdownReject(2000, 'getPrivateIp() failed'),
-    _getPrivateIp
-  ]);
+  // Set up the PeerConnection to start generating ICE candidates
+  pc.createDataChannel('dummy data channel').
+      then(pc.createOffer).
+      then(pc.setLocalDescription);
+
+  // Gather candidates for 2 seconds before returning privateIps or timing out
+  return new Promise(function (F, R) {
+    setTimeout(function () {
+      if (privateIps.length > 0) { F(privateIps); }
+      else { R(new Error("getPrivateIps() failed")); }
+    }, 2000);
+  });
 };
 
 /**
