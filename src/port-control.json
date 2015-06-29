@@ -13,6 +13,12 @@
   "default": "port-control",
   "api": {
     "port-control": {
+      "probeProtocolSupport": {
+        "type": "method",
+        "value": [],
+        "ret": {"natPmp": "boolean", "pcp": "boolean", "upnp": "boolean"}
+      },
+
       "openPortWithPmp": {
         "type": "method",
         "value": ["number", "number", "boolean"],

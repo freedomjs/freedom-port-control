@@ -10,6 +10,13 @@ function start(instance) {
     });
   });
 
+  document.getElementById('test-protocols').addEventListener('click', function () {
+    portControl.probeProtocolSupport().then(function (protocolSupport) {
+      document.getElementById('result-protocols').innerText =
+          JSON.stringify(protocolSupport);
+    });
+  });
+
   document.getElementById('test-PMP').addEventListener('click', function () {
     var intPort = document.getElementById('internal-port-PMP').value;
     var extPort = document.getElementById('external-port-PMP').value;

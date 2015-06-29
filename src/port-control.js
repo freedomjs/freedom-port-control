@@ -15,6 +15,24 @@ var routerIps = ['192.168.1.1', '192.168.2.1', '192.168.11.1',
   '10.0.1.1', '10.1.1.1', '10.0.0.138', '10.0.0.2', '10.0.0.138'];
 
 /**
+* Probes the NAT for NAT-PMP, PCP, and UPnP support,
+* and returns an object representing the NAT configuraiton
+* @public
+* @method probeProtocolSupport
+* @return {Promise<{"natPmp": boolean, "pcp": boolean, "upnp": boolean}>}
+*/
+PortControl.prototype.probeProtocolSupport = function () {
+  var protocolSupport = {};
+  return Promise.all([this.probePmpSupport(), this.probePcpSupport(),
+    this.probeUpnpSupport()]).then(function (support) {
+      protocolSupport.natPmp = support[0];
+      protocolSupport.pcp = support[1];
+      protocolSupport.upnp = support[2];
+      return protocolSupport;
+    });
+};
+
+/**
 * Open a specified port in the NAT with NAT-PMP,
 * and automatically refresh the port mapping every two minutes
 * @public
