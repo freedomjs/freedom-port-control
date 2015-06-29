@@ -168,7 +168,7 @@ PortControl.prototype.sendPmpRequest = function (routerIp, privateIp, intPort, e
     // https://github.com/uProxy/uproxy/issues/1687
 
     // Bind a UDP port and send a NAT-PMP request
-    socket.bind(privateIp, 0).then(function (result) {
+    socket.bind('0.0.0.0', 0).then(function (result) {
       // Construct the NAT-PMP map request as an ArrayBuffer
       // Map internal port 55555 to external port 55555 w/ 120 sec lifetime
       var pmpBuffer = new ArrayBuffer(12);
@@ -288,7 +288,7 @@ PortControl.prototype.sendPcpRequest = function (routerIp, privateIp, intPort, e
     });
 
     // Bind a UDP port and send a PCP request
-    socket.bind(privateIp, 0).then(function (result) {
+    socket.bind('0.0.0.0', 0).then(function (result) {
       // Create the PCP MAP request as an ArrayBuffer
       // Map internal port 55556 to external port 55556 w/ 120 sec lifetime
       var pcpBuffer = new ArrayBuffer(60);
@@ -449,7 +449,7 @@ PortControl.prototype.sendSsdpRequest = function (privateIp) {
     });
 
     // Bind a socket and send the SSDP request
-    socket.bind(privateIp, 0).then(function (result) {
+    socket.bind('0.0.0.0', 0).then(function (result) {
       // Construct and send a UPnP SSDP message
       var ssdpStr = 'M-SEARCH * HTTP/1.1\r\n' +
                     'HOST: 239.255.255.250:1900\r\n' +
