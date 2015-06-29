@@ -17,6 +17,8 @@ There are two types of methods: probing and control. Probing methods allow you t
 
 ### Probing methods
 
+To run all the NAT probing tests,
+
 ```
 // Probe for all port control protocols support
 portControl.probeProtocolSupport();
@@ -38,6 +40,17 @@ All of these methods return a promise that will resolve to a boolean value.
 
 ### Control methods
 
+To open a port (add a NAT port mapping),
+
+```
+// Open a port with any protocol available
+portControl.addMapping(50000, 50000);
+```
+
+This method returns a promise that will resolve to the newly mapped external port number, or `-1` on failure. 
+
+It also automatically refreshes the mapping every two minutes, unless `false` is passed in as the last argument.
+
 ```
 // Open a port with NAT-PMP
 portControl.openPortWithPmp(55555, 55555);
@@ -47,9 +60,7 @@ portControl.openPortWithPcp(55556, 55556);
 portControl.openPortWithUpnp(55557, 55557);
 ```
 
-All of these methods return a promise that will resolve to the newly mapped external port number, or `-1` on failure. 
-
-They also automatically refresh the mapping every two minutes, unless `false` is passed in as the last argument.
+All of these methods return the same promise as `addMapping`, and refreshes.
 
 ### IP address
 
