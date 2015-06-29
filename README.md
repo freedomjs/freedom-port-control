@@ -29,18 +29,15 @@ This method resolves to an object of the form `{"natPmp": true, "pcp": false, "u
 You can also probe for a specific protocol:
 
 ```
-// Probe for NAT-PMP support
 portControl.probePmpSupport();
-// Probe for PCP support
 portControl.probePcpSupport();
-// Probe for UPnP support
 portControl.probeUpnpSupport();
 ```
 All of these methods return a promise that will resolve to a boolean value.
 
 ### Control methods
 
-To open a port (add a NAT port mapping),
+To add a NAT port mapping,
 
 ```
 // Open a port with any protocol available
@@ -51,16 +48,15 @@ This method returns a promise that will resolve to the newly mapped external por
 
 It also automatically refreshes the mapping every two minutes, unless `false` is passed in as the last argument.
 
+You can also add a port mapping with a specific protocol:
+
 ```
-// Open a port with NAT-PMP
 portControl.openPortWithPmp(55555, 55555);
-// Open a port with PCP
 portControl.openPortWithPcp(55556, 55556);
-// Open a port with UPnP
 portControl.openPortWithUpnp(55557, 55557);
 ```
 
-All of these methods return the same promise as `addMapping`, and refreshes.
+All of these methods return the same promise as `addMapping`, and refreshes with the default final parameter.
 
 ### IP address
 
