@@ -42,9 +42,7 @@ To add a NAT port mapping with any protocol available,
 portControl.addMapping(50000, 50000);
 ```
 
-This method returns a promise that will resolve to the newly mapped external port number, or `-1` on failure. 
-
-It also automatically refreshes the mapping every two minutes, unless `false` is passed in as the last argument.
+This method returns a promise that will resolve to the newly mapped external port number, or `-1` on failure. It also automatically refreshes the mapping every two minutes, unless `false` is passed in as the last argument.
 
 You can also add a port mapping with a specific protocol:
 
