@@ -21,19 +21,19 @@ var routerIps = ['192.168.1.1', '192.168.2.1', '192.168.11.1',
 * @param {string} internalPort The internal port on the computer to map to
 * @param {string} externalPort The external port on the router to map to
 * @param {boolean} refresh (Optional) Whether to setInterval to refresh the mapping,
-* automatically set to true by the openPortWith* methods() if undefined
+* automatically set to true by the addMapping*() methods if undefined
 * @return {Promise<number>} A promise for the external port returned by the NAT, -1 if failed
 **/
 PortControl.prototype.addMapping = function (internalPort, externalPort, refresh) {
-  var openPortWithPcp = this.openPortWithPcp.bind(this);
-  var openPortWithUpnp = this.openPortWithUpnp.bind(this);
+  var addMappingPcp = this.addMappingPcp.bind(this);
+  var addMappingUpnp = this.addMappingUpnp.bind(this);
 
-  return this.openPortWithPmp(internalPort, externalPort).then(function (responsePort) {
+  return this.addMappingPmp(internalPort, externalPort).then(function (responsePort) {
     if (responsePort !== -1) { return responsePort; }
-    else { return openPortWithPcp(internalPort, externalPort, refresh); }
+    else { return addMappingPcp(internalPort, externalPort, refresh); }
   }).then(function (responsePort) {
     if (responsePort !== -1) { return responsePort; }
-    else { return openPortWithUpnp(internalPort, externalPort, refresh); }
+    else { return addMappingUpnp(internalPort, externalPort, refresh); }
   });
 };
 
@@ -56,17 +56,17 @@ PortControl.prototype.probeProtocolSupport = function () {
 };
 
 /**
-* Open a specified port in the NAT with NAT-PMP,
-* and automatically refresh the port mapping every two minutes
+* Makes a port mapping in the NAT with NAT-PMP,
+* and automatically refresh the mapping every two minutes
 * @public
-* @method openPortWithPmp
+* @method addMappingPmp
 * @param {string} internalPort The internal port on the computer to map to
 * @param {string} externalPort The external port on the router to map to
 * @param {boolean} [refresh = true] Whether to setInterval to refresh the mapping
 * @return {Promise<number>} A promise for the external port returned by the NAT, -1 if failed
 */
-PortControl.prototype.openPortWithPmp = function (internalPort, externalPort, refresh) {
-  function _openPortWithPmp() {
+PortControl.prototype.addMappingPmp = function (internalPort, externalPort, refresh) {
+  function _addMappingPmp() {
     var sendPmpRequest = this.sendPmpRequest.bind(this);
 
     return this.getPrivateIps().then(function (privateIps) {
@@ -96,11 +96,11 @@ PortControl.prototype.openPortWithPmp = function (internalPort, externalPort, re
   // setInterval refreshes the mapping every 120 seconds by default
   refresh = (refresh === undefined) ? true : refresh;
   if (refresh) {
-    setInterval(this.openPortWithPmp.bind(this, internalPort,
+    setInterval(this.addMappingPmp.bind(this, internalPort,
       externalPort, false), 120 * 1000);
   }
 
-  return _openPortWithPmp.apply(this);
+  return _addMappingPmp.apply(this);
 };
 
 /**
@@ -110,7 +110,7 @@ PortControl.prototype.openPortWithPmp = function (internalPort, externalPort, re
 * @return {Promise<boolean>} A promise for a boolean
 */
 PortControl.prototype.probePmpSupport = function () {
-  return this.openPortWithPmp(55555, 55555, false).
+  return this.addMappingPmp(55555, 55555, false).
       then(function (externalPort) {
         if (externalPort !== -1) { return true; }
         return false;
@@ -118,7 +118,7 @@ PortControl.prototype.probePmpSupport = function () {
 };
 
 /**
-* Send a NAT-PMP request to the router to open/map a port
+* Send a NAT-PMP request to the router to map a port
 * @private
 * @method sendPmpRequest
 * @param {string} routerIp The IP address that the router can be reached at
@@ -174,17 +174,17 @@ PortControl.prototype.sendPmpRequest = function (routerIp, privateIp, internalPo
 };
 
 /**
-* Open a specified port in the NAT with PCP,
-* and automatically refresh the port mapping every two minutes
+* Makes a port mapping in the NAT with PCP,
+* and automatically refresh the mapping every two minutes
 * @public
-* @method openPortWithPcp
+* @method addMappingPcp
 * @param {string} internalPort The internal port on the computer to map to
 * @param {string} externalPort The external port on the router to map to
 * @param {boolean} [refresh = true] Whether to setInterval to refresh the mapping
 * @return {Promise<number>} A promise for the external port returned by the NAT, -1 if failed
 */
-PortControl.prototype.openPortWithPcp = function (internalPort, externalPort, refresh) {
-  var _openPortWithPcp = function () {
+PortControl.prototype.addMappingPcp = function (internalPort, externalPort, refresh) {
+  var _addMappingPcp = function () {
     var sendPcpRequest = this.sendPcpRequest.bind(this);
 
     return this.getPrivateIps().then(function (privateIps) {
@@ -214,10 +214,10 @@ PortControl.prototype.openPortWithPcp = function (internalPort, externalPort, re
   // setInterval refreshes the mapping every 120 seconds by default
   refresh = (refresh === undefined) ? true : refresh;
   if (refresh) {
-    setInterval(this.openPortWithPcp.bind(this, internalPort,
+    setInterval(this.addMappingPcp.bind(this, internalPort,
       externalPort, false), 120 * 1000);
   }
-  return _openPortWithPcp.apply(this);
+  return _addMappingPcp.apply(this);
 };
 
 /**
@@ -227,7 +227,7 @@ PortControl.prototype.openPortWithPcp = function (internalPort, externalPort, re
 * @return {Promise<boolean>} A promise for a boolean
 */
 PortControl.prototype.probePcpSupport = function () {
-  return this.openPortWithPcp(55556, 55556, false).
+  return this.addMappingPcp(55556, 55556, false).
       then(function (externalPort) {
         if (externalPort !== -1) { return true; }
         return false;
@@ -235,7 +235,7 @@ PortControl.prototype.probePcpSupport = function () {
 };
 
 /**
-* Send a PCP request to the router to open/map a port
+* Send a PCP request to the router to map a port
 * @private
 * @method sendPcpRequest
 * @param {string} routerIp The IP address that the router can be reached at
@@ -318,17 +318,17 @@ PortControl.prototype.sendPcpRequest = function (routerIp, privateIp, internalPo
 };
 
 /**
-* Open a specified port in the NAT with UPnP AddPortMapping,
-* and automatically refresh the port mapping every two minutes
+* Makes a port mapping in the NAT with UPnP AddPortMapping,
+* and automatically refresh the mapping every two minutes
 * @public
-* @method openPortWithUpnp
+* @method addMappingUpnp
 * @param {string} internalPort The internal port on the computer to map to
 * @param {string} externalPort The external port on the router to map to
 * @param {boolean} [refresh = true] Whether to setInterval to refresh the mapping
 * @return {Promise<number>} A promise for the external port returned by the NAT, -1 if failed
 */
-PortControl.prototype.openPortWithUpnp = function (internalPort, externalPort, refresh) {
-  var _openPortWithUpnp = function () {
+PortControl.prototype.addMappingUpnp = function (internalPort, externalPort, refresh) {
+  var _addMappingUpnp = function () {
     var sendUpnpRequest = this.sendUpnpRequest.bind(this);
 
     return this.getPrivateIps().then(function (privateIps) {
@@ -347,10 +347,10 @@ PortControl.prototype.openPortWithUpnp = function (internalPort, externalPort, r
   // setInterval refreshes the mapping every 120 seconds by default
   refresh = (refresh === undefined) ? true : refresh;
   if (refresh) {
-    setInterval(this.openPortWithUpnp.bind(this, internalPort,
+    setInterval(this.addMappingUpnp.bind(this, internalPort,
       externalPort, false), 120 * 1000);
   }
-  return _openPortWithUpnp.apply(this);
+  return _addMappingUpnp.apply(this);
 };
 
 /**
@@ -360,7 +360,7 @@ PortControl.prototype.openPortWithUpnp = function (internalPort, externalPort, r
 * @return {Promise<boolean>} A promise for a boolean
 */
 PortControl.prototype.probeUpnpSupport = function () {
-  return this.openPortWithUpnp(55557, 55557, false).
+  return this.addMappingUpnp(55557, 55557, false).
       then(function (externalPort) {
         if (externalPort !== -1) { return true; }
         return false;
@@ -369,7 +369,7 @@ PortControl.prototype.probeUpnpSupport = function () {
 
 // TODO(kennysong): Handle multiple UPnP SSDP responses
 /**
-* Send a UPnP AddPortMapping request to the router to open/map a port
+* Send a UPnP AddPortMapping request to the router to map a port
 * @private
 * @method sendUpnpRequest
 * @param {string} privateIp The private IP address of the user's computer

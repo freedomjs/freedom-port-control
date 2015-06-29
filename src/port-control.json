@@ -25,7 +25,7 @@
         "ret": {"natPmp": "boolean", "pcp": "boolean", "upnp": "boolean"}
       },
 
-      "openPortWithPmp": {
+      "addMappingPmp": {
         "type": "method",
         "value": ["number", "number", "boolean"],
         "ret": "number"
@@ -37,7 +37,7 @@
         "ret": "boolean"
       },
 
-      "openPortWithPcp": {
+      "addMappingPcp": {
         "type": "method",
         "value": ["number", "number", "boolean"],
         "ret": "number"
@@ -49,7 +49,7 @@
         "ret": "boolean"
       },
 
-      "openPortWithUpnp": {
+      "addMappingUpnp": {
         "type": "method",
         "value": ["number", "number", "boolean"],
         "ret": "number"
