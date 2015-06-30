@@ -457,21 +457,40 @@ PortControl.prototype.sendUpnpRequest = function (intPort, extPort) {
   var internalIp;
 
   return new Promise(function (F, R) {
-    _this.sendSsdpRequest().then(function (ssdpResponse) {
-      return _this.fetchControlUrl.call(_this, ssdpResponse);
-    }).then(function (controlUrl) {
-      // Parse the router IP from the control URL
-      var routerIp = (new URL(controlUrl)).hostname;
+    _this.sendSsdpRequest().then(function (ssdpResponses) {
+      // After collecting all the SSDP responses, try to get the
+      // control URL field for each response, and return an array
+      return Promise.all(ssdpResponses.map(function (ssdpResponse) {
+        return _this.fetchControlUrl(ssdpResponse).
+            then(function (controlUrl) { return controlUrl; }).
+            catch(function (err) { return null; });
+      }));
+    }).then(function (controlUrls) {
+      // Find the first control URL that we received; we use it for AddPortMapping
+      var routerIp;
+      var controlUrl;
+      for (var i = 0; i < controlUrls.length; i++) {
+        controlUrl = controlUrls[i];
+        if (controlUrl !== null) {
+          // Parse the router IP from the control URL
+          routerIp = (new URL(controlUrl)).hostname;
+          break;
+        }
+      }
 
-      // Get the correct internal IP (if there are multiple network interfaces)
-      // for the UPnP router, by doing a longest prefix match, and use it to
-      // send an AddPortMapping request
-      return _this.getPrivateIps().then(function(privateIps) {
-        internalIp = _this.longestPrefixMatch(privateIps, routerIp);
+      if (routerIp !== undefined) {
+        // Get the correct internal IP (if there are multiple network interfaces)
+        // for this UPnP router, by doing a longest prefix match, and use it to
+        // send an AddPortMapping request
+        return _this.getPrivateIps().then(function(privateIps) {
+          internalIp = _this.longestPrefixMatch(privateIps, routerIp);
 
-        return _this.sendAddPortMapping.call(_this, controlUrl, internalIp,
-                                             intPort, extPort);
-      });
+          return _this.sendAddPortMapping.call(_this, controlUrl, internalIp,
+                                               intPort, extPort);
+        });
+      } else {
+        R(new Error("No UPnP devices have a control URL"));
+      }
     }).then(function (result) {
       F(internalIp);  // Result is a non-descriptive success string, no need to return
     }).catch(function (err) {
@@ -481,44 +500,41 @@ PortControl.prototype.sendUpnpRequest = function (intPort, extPort) {
 };
 
 /**
-* Send a UPnP SSDP request on the network and wait for a response
+* Send a UPnP SSDP request on the network and collects responses
 * @private
 * @method sendSsdpRequest
-* @return {Promise<ArrayBuffer>} A promise that fulfills with a SSDP response, or rejects on timeout
+* @return {Promise<Array>} A promise that fulfills with an array of SSDP response,
+*                          or rejects on timeout
 */
 PortControl.prototype.sendSsdpRequest = function () {
-  var socket;
   var _this = this;
+  var ssdpResponses = [];
+  var socket = freedom['core.udpsocket']();
 
-  var _sendSsdpRequest = new Promise(function (F, R) {
-    socket = freedom['core.udpsocket']();
-
-    // Fulfill when we get any reply (failure is on timeout or invalid parsing)
-    socket.on('onData', function (ssdpResponse) {
-      _this.closeSocket(socket);
-      F(ssdpResponse.data);
-    });
-
-    // Bind a socket and send the SSDP request
-    socket.bind('0.0.0.0', 0).then(function (result) {
-      // Construct and send a UPnP SSDP message
-      var ssdpStr = 'M-SEARCH * HTTP/1.1\r\n' +
-                    'HOST: 239.255.255.250:1900\r\n' +
-                    'MAN: ssdp:discover\r\n' +
-                    'MX: 10\r\n' +
-                    'ST: urn:schemas-upnp-org:device:InternetGatewayDevice:1';
-      var ssdpBuffer = _this.stringToArrayBuffer(ssdpStr);
-      socket.sendTo(ssdpBuffer, '239.255.255.250', 1900);
-    });
+  // Fulfill when we get any reply (failure is on timeout or invalid parsing)
+  socket.on('onData', function (ssdpResponse) {
+    ssdpResponses.push(ssdpResponse.data);
   });
 
-  // Give _sendSsdpRequest 1 second before timing out
-  return Promise.race([
-    _this.countdownReject(1000, 'SSDP time out', function () {
-      _this.closeSocket(socket);
-    }),
-    _sendSsdpRequest
-  ]);
+  // Bind a socket and send the SSDP request
+  socket.bind('0.0.0.0', 0).then(function (result) {
+    // Construct and send a UPnP SSDP message
+    var ssdpStr = 'M-SEARCH * HTTP/1.1\r\n' +
+                  'HOST: 239.255.255.250:1900\r\n' +
+                  'MAN: ssdp:discover\r\n' +
+                  'MX: 10\r\n' +
+                  'ST: urn:schemas-upnp-org:device:InternetGatewayDevice:1';
+    var ssdpBuffer = _this.stringToArrayBuffer(ssdpStr);
+    socket.sendTo(ssdpBuffer, '239.255.255.250', 1900);
+  });
+
+  // Collect SSDP responses for 1 second before timing out
+  return new Promise(function (F, R) {
+    setTimeout(function () {
+      if (ssdpResponses.length > 0) { F(ssdpResponses); }
+      else { R(new Error("SSDP timeout")); }
+    }, 1000);
+  });
 };
 
 /**
