@@ -22,11 +22,10 @@ function start(instance) {
   document.getElementById('test-PMP').addEventListener('click', function () {
     var intPort = document.getElementById('internal-port-PMP').value;
     var extPort = document.getElementById('external-port-PMP').value;
-    portControl.addMappingPmp(intPort, extPort, false).then(function (extPort) {
-      if (extPort !== -1) {
+    portControl.addMappingPmp(intPort, extPort, false).then(function (mappingObj) {
+      if (mappingObj.externalPort !== -1) {
         document.getElementById('result-PMP').innerText =
-            "NAT-PMP mapped internal port " + intPort +
-            " to external port " + extPort;
+            "NAT-PMP mapping object: " + JSON.stringify(mappingObj, null, 2);
       } else {
         document.getElementById('result-PMP').innerText = "NAT-PMP failure.";
       }
@@ -36,11 +35,10 @@ function start(instance) {
   document.getElementById('test-PCP').addEventListener('click', function () {
     var intPort = document.getElementById('internal-port-PCP').value;
     var extPort = document.getElementById('external-port-PCP').value;
-    portControl.addMappingPcp(intPort, extPort, false).then(function (extPort) {
-      if (extPort !== -1) {
+    portControl.addMappingPcp(intPort, extPort, false).then(function (mappingObj) {
+      if (mappingObj.externalPort !== -1) {
         document.getElementById('result-PCP').innerText =
-            "PCP mapped internal port " + intPort +
-            " to external port " + extPort;
+            "PCP mapping object: " + JSON.stringify(mappingObj, null, 2);
       } else {
         document.getElementById('result-PCP').innerText = "PCP failure.";
       }
@@ -50,11 +48,10 @@ function start(instance) {
   document.getElementById('test-UPnP').addEventListener('click', function () {
     var intPort = document.getElementById('internal-port-UPnP').value;
     var extPort = document.getElementById('external-port-UPnP').value;
-    portControl.addMappingUpnp(intPort, extPort, false).then(function (extPort) {
-      if (extPort !== -1) {
+    portControl.addMappingUpnp(intPort, extPort, false).then(function (mappingObj) {
+      if (mappingObj.externalPort !== -1) {
         document.getElementById('result-UPnP').innerText =
-            "UPnP mapped internal port " + intPort +
-            " to external port " + extPort;
+            "UPnP mapping object: " + JSON.stringify(mappingObj, null, 2);
       } else {
         document.getElementById('result-UPnP').innerText = "UPnP failure. (Check console for details)";
       }

@@ -33,7 +33,8 @@
       "addMappingPmp": {
         "type": "method",
         "value": ["number", "number", "boolean"],
-        "ret": "number"
+        "ret": {"internalIp": "string", "internalPort": "number",
+                "externalIp": "string", "externalPort": "number"}
       },
 
       "probePmpSupport": {
@@ -45,7 +46,8 @@
       "addMappingPcp": {
         "type": "method",
         "value": ["number", "number", "boolean"],
-        "ret": "number"
+        "ret": {"internalIp": "string", "internalPort": "number",
+                "externalIp": "string", "externalPort": "number"}
       },
 
       "probePcpSupport": {
@@ -57,7 +59,8 @@
       "addMappingUpnp": {
         "type": "method",
         "value": ["number", "number", "boolean"],
-        "ret": "number"
+        "ret": {"internalIp": "string", "internalPort": "number",
+                "externalIp": "string", "externalPort": "number"}
       },
 
       "probeUpnpSupport": {

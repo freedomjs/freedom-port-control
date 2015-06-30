@@ -1,4 +1,5 @@
 var ipaddr = require('ipaddr.js');
+// TODO(kennysong): IPv6 support?
 
 var PortControl = function (dispatchEvent) {
   this.dispatchEvent = dispatchEvent;
@@ -19,6 +20,15 @@ var routerIps = ['192.168.1.1', '192.168.2.1', '192.168.11.1',
 * { externalPortNumber: intervalId, ... }
 */
 var mappingRefreshTimers = {};
+
+/**
+* An object representing a port mapping returned by mapping methods
+* @typedef {Object} mappingObj
+* @property {string} internalIp
+* @property {number} internalPort
+* @property {string} externalIp Only provided by PCP, undefined for other protocols
+* @property {number} externalPort The actual external port of the mapping, -1 on failure
+*/
 
 /**
 * Add a port mapping through the NAT with any protocol that works
@@ -81,33 +91,47 @@ PortControl.prototype.probeProtocolSupport = function () {
 * @param {string} intPort The internal port on the computer to map to
 * @param {string} extPort The external port on the router to map to
 * @param {boolean} [refresh = true] Whether to setInterval to refresh the mapping
-* @return {Promise<number>} A promise for the external port returned by the NAT, -1 if failed
+* @return {Promise<mappingObj>} A promise for the port mapping object (externalPort === -1 on failure)
 */
 PortControl.prototype.addMappingPmp = function (intPort, extPort, refresh) {
   var _this = this;
+  var mappingObj = {};
+  mappingObj.internalPort = intPort;
+  mappingObj.externalPort = -1;
 
   function _addMappingPmp() {
-    return _this.getPrivateIps().then(function (privateIps) {
-      // Return an array of ArrayBuffers, which are the responses of
-      // sendPmpRequest() calls on all the router IPs. An error result
-      // is caught and re-passed as null.
-      var privateIp = privateIps[0];
-      return Promise.all(routerIps.map(function (routerIp) {
-        return _this.sendPmpRequest(routerIp, privateIp, intPort, extPort).
+    // Return an array of ArrayBuffers, which are the responses of
+    // sendPmpRequest() calls on all the router IPs. An error result
+    // is caught and re-passed as null.
+    return Promise.all(routerIps.map(function (routerIp) {
+        return _this.sendPmpRequest(routerIp, intPort, extPort).
             then(function (pmpResponse) { return pmpResponse; }).
             catch(function (err) { return null; });
-      }));
-    }).then(function (responses) {
+    })).then(function (responses) {
       // Check if any of the responses are successful (not null)
-      // and parse the external IP returned by the router
+      // and parse the external port and router IP in the response
       for (var i = 0; i < responses.length; i++) {
         if (responses[i] !== null) {
-          var responseView = new DataView(responses[i]);
+          var responseView = new DataView(responses[i].data);
           var extPort = responseView.getUint16(10);
-          return extPort;
+          mappingObj.externalPort = extPort;
+          return ipaddr.IPv4.parse(responses[i].address);  // Router's internal IP
         }
       }
-      return -1;
+    }).then(function (routerIntIp) {
+      if (routerIntIp !== undefined) {
+        // Find the longest prefix match for all the client's internal IPs with
+        // the router IP. This was the internal IP for the new mapping. (We want
+        // to identify which network interface the socket bound to, since NAT-PMP
+        // uses the request's source IP, not a specified one, for the mapping.)
+        return _this.getPrivateIps().then(function (privateIps) {
+          var internalIp = _this.longestPrefixMatch(privateIps, routerIntIp);
+          mappingObj.internalIp = internalIp;
+          return mappingObj;
+        });
+      } else {
+        return mappingObj;
+      }
     });
   }
 
@@ -145,12 +169,12 @@ PortControl.prototype.probePmpSupport = function () {
 * @private
 * @method sendPmpRequest
 * @param {string} routerIp The IP address that the router can be reached at
-* @param {string} privateIp The private IP address of the user's computer
 * @param {string} intPort The internal port on the computer to map to
 * @param {string} extPort The external port on the router to map to
-* @return {Promise<ArrayBuffer>} A promise that fulfills with the NAT-PMP response, or rejects on timeout
+* @return {Promise<{"resultCode": number, "address": string, "port": number, "data": ArrayBuffer}>}
+*         A promise that fulfills with the full NAT-PMP response object, or rejects on timeout
 */
-PortControl.prototype.sendPmpRequest = function (routerIp, privateIp, intPort, extPort) {
+PortControl.prototype.sendPmpRequest = function (routerIp, intPort, extPort) {
   var socket;
   var _this = this;
 
@@ -160,8 +184,10 @@ PortControl.prototype.sendPmpRequest = function (routerIp, privateIp, intPort, e
 
     // Fulfill when we get any reply (failure is on timeout in wrapper function)
     socket.on('onData', function (pmpResponse) {
+      // We need to return the entire pmpResponse, not just the ArrayBuffer,
+      // since we need the router's internal IP to guess the client's internal IP
       _this.closeSocket(socket);
-      F(pmpResponse.data);
+      F(pmpResponse);
     });
 
     // TODO(kennysong): Handle an error case for all socket.bind() when this issue is fixed:
@@ -204,14 +230,19 @@ PortControl.prototype.sendPmpRequest = function (routerIp, privateIp, intPort, e
 * @param {string} intPort The internal port on the computer to map to
 * @param {string} extPort The external port on the router to map to
 * @param {boolean} [refresh = true] Whether to setInterval to refresh the mapping
-* @return {Promise<number>} A promise for the external port returned by the NAT, -1 if failed
+* @return {Promise<mappingObj>} A promise for the port mapping object (externalPort === -1 on failure)
 */
 PortControl.prototype.addMappingPcp = function (intPort, extPort, refresh) {
   var _this = this;
+  var mappingObj = {};
+  mappingObj.internalPort = intPort;
+  mappingObj.externalPort = -1;
 
   var _addMappingPcp = function () {
     return _this.getPrivateIps().then(function (privateIps) {
+      // TODO(kennysong): Do some better selection of the privateIps here and for UPnP?
       var privateIp = privateIps[0];
+      mappingObj.internalIp = privateIp;
       // Return an array of ArrayBuffers, which are the responses of
       // sendPcpRequest() calls on all the router IPs. An error result
       // is caught and re-passed as null.
@@ -222,15 +253,20 @@ PortControl.prototype.addMappingPcp = function (intPort, extPort, refresh) {
       }));
     }).then(function (responses) {
       // Check if any of the responses are successful (not null)
-      // and parse the external IP returned by the router
+      // and parse the external port and IP returned by the router
       for (var i = 0; i < responses.length; i++) {
         if (responses[i] !== null) {
           var responseView = new DataView(responses[i]);
           var extPort = responseView.getUint16(42);
-          return extPort;
+          var ipOctets = [responseView.getUint8(56), responseView.getUint8(57),
+                          responseView.getUint8(58), responseView.getUint8(59)];
+          var extIp = ipOctets.join('.');
+
+          mappingObj.externalPort = extPort;
+          mappingObj.externalIp = extIp;
         }
       }
-      return -1;
+      return mappingObj;
     });
   };
 
@@ -351,22 +387,28 @@ PortControl.prototype.sendPcpRequest = function (routerIp, privateIp, intPort, e
 * @param {string} intPort The internal port on the computer to map to
 * @param {string} extPort The external port on the router to map to
 * @param {boolean} [refresh = true] Whether to setInterval to refresh the mapping
-* @return {Promise<number>} A promise for the external port returned by the NAT, -1 if failed
+* @return {Promise<mappingObj>} A promise for the port mapping object (externalPort is -1 on failure)
 */
 PortControl.prototype.addMappingUpnp = function (intPort, extPort, refresh) {
   var _this = this;
+  var mappingObj = {};
+  mappingObj.internalPort = intPort;
+  mappingObj.externalPort = -1;
 
   var _addMappingUpnp = function () {
     return _this.getPrivateIps().then(function (privateIps) {
       var privateIp = privateIps[0];
+      mappingObj.internalIp = privateIp;
       return _this.sendUpnpRequest(privateIp, intPort, extPort);
     }).then(function (response) {
-      // Success response to AddPortMapping
-      return extPort;
+      // Success response to AddPortMapping (just a non-informative success string)
+      // The requested external port will always be mapped on success, errors otherwise
+      mappingObj.externalPort = extPort;
+      return mappingObj;
     }).catch(function (err) {
       // Either time out, runtime error, or error response to AddPortMapping
       console.log("UPnP failed at: " + err.message);
-      return -1;
+      return mappingObj;
     });
   };
 
@@ -657,6 +699,35 @@ PortControl.prototype.closeSocket = function (socket) {
     freedom['core.udpsocket'].close(socket);
   });
 };
+
+/**
+* Takes a list of IP addresses (a user's private IPs) and an IP address for a
+* router/subnet, and returns the IP that has the longest prefix match with the
+* router's IP
+* @private
+* @method longestPrefixMatch
+* @param {Array} ipList List of IP addresses to find the longest prefix match in
+* @param {string} routerIp The router's IP address as a string
+* @return {string} The IP from the given list with the longest prefix match
+*/
+PortControl.prototype.longestPrefixMatch(ipList, routerIp) {
+  var prefixMatches = [];
+  for (var i = 0; i < privateIps.length; i++) {
+    var ip = ipaddr.IPv4.parse(ipList[i]);
+    // Use ipaddr.js to find the longest prefix length (mask length)
+    for (var mask = 1; mask < 32; mask++) {
+      if (!ip.match(routerIp, mask)) {
+        prefixMatches.push(mask - 1);
+        break;
+      }
+    }
+  }
+
+  // Find the argmax for prefixMatches, i.e. the index of the correct private IP
+  var maxIndex = prefixMatches.indexOf(Math.max.apply(null, prefixMatches));
+  var correctIp = ipList[maxIndex];
+  return correctIp;
+}
 
 /**
 * Return a random integer in a specified range
