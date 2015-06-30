@@ -38,16 +38,16 @@ var mappingRefreshTimers = {};
 * @param {string} extPort The external port on the router to map to
 * @param {boolean} refresh (Optional) Whether to setInterval to refresh the mapping,
 * automatically set to true by the addMapping*() methods if undefined
-* @return {Promise<number>} A promise for the external port returned by the NAT, -1 if failed
+* @return {Promise<mappingObj>} A promise for the port mapping object (externalPort === -1 on failure)
 **/
 PortControl.prototype.addMapping = function (intPort, extPort, refresh) {
   var _this = this;
 
-  return _this.addMappingPmp(intPort, extPort, refresh).then(function (responsePort) {
-    if (responsePort !== -1) { return responsePort; }
+  return _this.addMappingPmp(intPort, extPort, refresh).then(function (mappingObj) {
+    if (mappingObj.externalPort !== -1) { return mappingObj; }
     else { return _this.addMappingPcp(intPort, extPort, refresh); }
-  }).then(function (responsePort) {
-    if (responsePort !== -1) { return responsePort; }
+  }).then(function (mappingObj) {
+    if (mappingObj.externalPort !== -1) { return mappingObj; }
     else { return _this.addMappingUpnp(intPort, extPort, refresh); }
   });
 };
@@ -84,6 +84,20 @@ PortControl.prototype.probeProtocolSupport = function () {
 };
 
 /**
+* Probe if NAT-PMP is supported by the router
+* @public
+* @method probePmpSupport
+* @return {Promise<boolean>} A promise for a boolean
+*/
+PortControl.prototype.probePmpSupport = function () {
+  return this.addMappingPmp(55555, 55555, false).
+      then(function (mappingObj) {
+        if (mappingObj.externalPort !== -1) { return true; }
+        return false;
+      });
+};
+
+/**
 * Makes a port mapping in the NAT with NAT-PMP,
 * and automatically refresh the mapping every two minutes
 * @public
@@ -115,7 +129,7 @@ PortControl.prototype.addMappingPmp = function (intPort, extPort, refresh) {
           var responseView = new DataView(responses[i].data);
           var extPort = responseView.getUint16(10);
           mappingObj.externalPort = extPort;
-          return ipaddr.IPv4.parse(responses[i].address);  // Router's internal IP
+          return responses[i].address;  // Router's internal IP
         }
       }
     }).then(function (routerIntIp) {
@@ -148,20 +162,6 @@ PortControl.prototype.addMappingPmp = function (intPort, extPort, refresh) {
     }
     return responsePort;
   });
-};
-
-/**
-* Probe if NAT-PMP is supported by the router
-* @public
-* @method probePmpSupport
-* @return {Promise<boolean>} A promise for a boolean
-*/
-PortControl.prototype.probePmpSupport = function () {
-  return this.addMappingPmp(55555, 55555, false).
-      then(function (extPort) {
-        if (extPort !== -1) { return true; }
-        return false;
-      });
 };
 
 /**
@@ -223,6 +223,20 @@ PortControl.prototype.sendPmpRequest = function (routerIp, intPort, extPort) {
 };
 
 /**
+* Probe if PCP is supported by the router
+* @public
+* @method probePcpSupport
+* @return {Promise<boolean>} A promise for a boolean
+*/
+PortControl.prototype.probePcpSupport = function () {
+  return this.addMappingPcp(55556, 55556, false).
+      then(function (mappingObj) {
+        if (mappingObj.externalPort !== -1) { return true; }
+        return false;
+      });
+};
+
+/**
 * Makes a port mapping in the NAT with PCP,
 * and automatically refresh the mapping every two minutes
 * @public
@@ -240,23 +254,26 @@ PortControl.prototype.addMappingPcp = function (intPort, extPort, refresh) {
 
   var _addMappingPcp = function () {
     return _this.getPrivateIps().then(function (privateIps) {
-      // TODO(kennysong): Do some better selection of the privateIps here and for UPnP?
-      var privateIp = privateIps[0];
-      mappingObj.internalIp = privateIp;
       // Return an array of ArrayBuffers, which are the responses of
       // sendPcpRequest() calls on all the router IPs. An error result
       // is caught and re-passed as null.
       return Promise.all(routerIps.map(function (routerIp) {
+        // Choose a privateIp based on the currently selected routerIp,
+        // using a longest prefix match, and send a PCP request with that IP
+        var privateIp = _this.longestPrefixMatch(privateIps, routerIp);
         return _this.sendPcpRequest(routerIp, privateIp, intPort, extPort).
-            then(function (pcpResponse) { return pcpResponse; }).
-            catch(function (err) { return null; });
+            then(function (pcpResponse) {
+              return {"pcpResponse": pcpResponse, "privateIp": privateIp};
+            }).
+            catch(function (err) {
+              return null;
+            });
       }));
     }).then(function (responses) {
       // Check if any of the responses are successful (not null)
-      // and parse the external port and IP returned by the router
       for (var i = 0; i < responses.length; i++) {
         if (responses[i] !== null) {
-          var responseView = new DataView(responses[i]);
+          var responseView = new DataView(responses[i].pcpResponse);
           var extPort = responseView.getUint16(42);
           var ipOctets = [responseView.getUint8(56), responseView.getUint8(57),
                           responseView.getUint8(58), responseView.getUint8(59)];
@@ -264,6 +281,7 @@ PortControl.prototype.addMappingPcp = function (intPort, extPort, refresh) {
 
           mappingObj.externalPort = extPort;
           mappingObj.externalIp = extIp;
+          mappingObj.internalIp = responses[i].privateIp;
         }
       }
       return mappingObj;
@@ -283,20 +301,6 @@ PortControl.prototype.addMappingPcp = function (intPort, extPort, refresh) {
     }
     return responsePort;
   });
-};
-
-/**
-* Probe if PCP is supported by the router
-* @public
-* @method probePcpSupport
-* @return {Promise<boolean>} A promise for a boolean
-*/
-PortControl.prototype.probePcpSupport = function () {
-  return this.addMappingPcp(55556, 55556, false).
-      then(function (extPort) {
-        if (extPort !== -1) { return true; }
-        return false;
-      });
 };
 
 /**
@@ -380,6 +384,20 @@ PortControl.prototype.sendPcpRequest = function (routerIp, privateIp, intPort, e
 };
 
 /**
+* Probe if UPnP AddPortMapping is supported by the router
+* @public
+* @method probeUpnpSupport
+* @return {Promise<boolean>} A promise for a boolean
+*/
+PortControl.prototype.probeUpnpSupport = function () {
+  return this.addMappingUpnp(55557, 55557, false).
+      then(function (mappingObj) {
+        if (mappingObj.externalPort !== -1) { return true; }
+        return false;
+      });
+};
+
+/**
 * Makes a port mapping in the NAT with UPnP AddPortMapping,
 * and automatically refresh the mapping every two minutes
 * @public
@@ -396,14 +414,11 @@ PortControl.prototype.addMappingUpnp = function (intPort, extPort, refresh) {
   mappingObj.externalPort = -1;
 
   var _addMappingUpnp = function () {
-    return _this.getPrivateIps().then(function (privateIps) {
-      var privateIp = privateIps[0];
-      mappingObj.internalIp = privateIp;
-      return _this.sendUpnpRequest(privateIp, intPort, extPort);
-    }).then(function (response) {
-      // Success response to AddPortMapping (just a non-informative success string)
+    return _this.sendUpnpRequest(intPort, extPort).then(function (intIp) {
+      // Success response to AddPortMapping (the internal IP of the mapping)
       // The requested external port will always be mapped on success, errors otherwise
       mappingObj.externalPort = extPort;
+      mappingObj.internalIp = intIp;
       return mappingObj;
     }).catch(function (err) {
       // Either time out, runtime error, or error response to AddPortMapping
@@ -427,41 +442,38 @@ PortControl.prototype.addMappingUpnp = function (intPort, extPort, refresh) {
   });
 };
 
-/**
-* Probe if UPnP AddPortMapping is supported by the router
-* @public
-* @method probeUpnpSupport
-* @return {Promise<boolean>} A promise for a boolean
-*/
-PortControl.prototype.probeUpnpSupport = function () {
-  return this.addMappingUpnp(55557, 55557, false).
-      then(function (extPort) {
-        if (extPort !== -1) { return true; }
-        return false;
-      });
-};
-
 // TODO(kennysong): Handle multiple UPnP SSDP responses
 /**
-* Send a UPnP AddPortMapping request to the router to map a port
+* Runs the UPnP procedure for mapping a port
 * @private
 * @method sendUpnpRequest
-* @param {string} privateIp The private IP address of the user's computer
 * @param {string} intPort The internal port on the computer to map to
 * @param {string} extPort The external port on the router to map to
-* @return {Promise<string>} A promise that fulfills with the UPnP response string, or rejects on timeout
+* @return {Promise<string>} A promise that fulfills with the internal IP of the mapping,
+*                           or rejects on timeout.
 */
-PortControl.prototype.sendUpnpRequest = function (privateIp, intPort, extPort) {
+PortControl.prototype.sendUpnpRequest = function (intPort, extPort) {
   var _this = this;
+  var internalIp;
 
   return new Promise(function (F, R) {
-    _this.sendSsdpRequest(privateIp).then(function (ssdpResponse) {
+    _this.sendSsdpRequest().then(function (ssdpResponse) {
       return _this.fetchControlUrl.call(_this, ssdpResponse);
     }).then(function (controlUrl) {
-      return _this.sendAddPortMapping.call(_this, controlUrl, privateIp,
-                                           intPort, extPort);
+      // Parse the router IP from the control URL
+      var routerIp = (new URL(controlUrl)).hostname;
+
+      // Get the correct internal IP (if there are multiple network interfaces)
+      // for the UPnP router, by doing a longest prefix match, and use it to
+      // send an AddPortMapping request
+      return _this.getPrivateIps().then(function(privateIps) {
+        internalIp = _this.longestPrefixMatch(privateIps, routerIp);
+
+        return _this.sendAddPortMapping.call(_this, controlUrl, internalIp,
+                                             intPort, extPort);
+      });
     }).then(function (result) {
-      F(result);
+      F(internalIp);  // Result is a non-descriptive success string, no need to return
     }).catch(function (err) {
       R(err);
     });
@@ -472,10 +484,9 @@ PortControl.prototype.sendUpnpRequest = function (privateIp, intPort, extPort) {
 * Send a UPnP SSDP request on the network and wait for a response
 * @private
 * @method sendSsdpRequest
-* @param {string} privateIp The private IP address of the user's computer
 * @return {Promise<ArrayBuffer>} A promise that fulfills with a SSDP response, or rejects on timeout
 */
-PortControl.prototype.sendSsdpRequest = function (privateIp) {
+PortControl.prototype.sendSsdpRequest = function () {
   var socket;
   var _this = this;
 
@@ -710,9 +721,10 @@ PortControl.prototype.closeSocket = function (socket) {
 * @param {string} routerIp The router's IP address as a string
 * @return {string} The IP from the given list with the longest prefix match
 */
-PortControl.prototype.longestPrefixMatch(ipList, routerIp) {
+PortControl.prototype.longestPrefixMatch = function (ipList, routerIp) {
   var prefixMatches = [];
-  for (var i = 0; i < privateIps.length; i++) {
+  routerIp = ipaddr.IPv4.parse(routerIp);
+  for (var i = 0; i < ipList.length; i++) {
     var ip = ipaddr.IPv4.parse(ipList[i]);
     // Use ipaddr.js to find the longest prefix length (mask length)
     for (var mask = 1; mask < 32; mask++) {
@@ -727,7 +739,7 @@ PortControl.prototype.longestPrefixMatch(ipList, routerIp) {
   var maxIndex = prefixMatches.indexOf(Math.max.apply(null, prefixMatches));
   var correctIp = ipList[maxIndex];
   return correctIp;
-}
+};
 
 /**
 * Return a random integer in a specified range

@@ -16,7 +16,8 @@
       "addMapping": {
         "type": "method",
         "value": ["number", "number", "boolean"],
-        "ret": "number"
+        "ret": {"internalIp": "string", "internalPort": "number",
+                "externalIp": "string", "externalPort": "number"}
       },
 
       "releaseMapping": {

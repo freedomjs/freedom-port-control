@@ -15,7 +15,7 @@ function start(instance) {
   document.getElementById('test-protocols').addEventListener('click', function () {
     portControl.probeProtocolSupport().then(function (protocolSupport) {
       document.getElementById('result-protocols').innerText =
-          JSON.stringify(protocolSupport);
+          JSON.stringify(protocolSupport, null, 2);
     });
   });
 
@@ -61,11 +61,10 @@ function start(instance) {
   document.getElementById('test-any').addEventListener('click', function () {
     var intPort = document.getElementById('internal-port-any').value;
     var extPort = document.getElementById('external-port-any').value;
-    portControl.addMapping(intPort, extPort, false).then(function (extPort) {
-      if (extPort !== -1) {
+    portControl.addMapping(intPort, extPort, false).then(function (mappingObj) {
+      if (mappingObj.externalPort !== -1) {
         document.getElementById('result-any').innerText =
-            "Internal port " + intPort +
-            " is mapped to external port " + extPort;
+            JSON.stringify(mappingObj, null, 2);
       } else {
         document.getElementById('result-any').innerText = "All protocols failed.";
       }

@@ -3,6 +3,17 @@
   <head>
     <script type="text/javascript" src="freedom-for-chrome.js"></script>
     <script type="text/javascript" src="page.js"></script>
+    <style>
+      html, body {
+        overflow-y: visible;
+      }
+
+      #result-IP, #result-protocols, #result-PMP,
+      #result-PCP, #result-UPnP, #result-any {
+        font-family: monospace;
+        font-size: 12px;
+      }
+    </style>
   </head>
   <body>
     <button id="test-IP">Get my private IP addresses</button>
