@@ -1,4 +1,4 @@
-// var ipaddr = require('ipaddr.js');
+var ipaddr = require('ipaddr.js');
 
 var PortControl = function (dispatchEvent) {
   this.dispatchEvent = dispatchEvent;
@@ -307,9 +307,7 @@ PortControl.prototype.sendPcpRequest = function (routerIp, privateIp, intPort, e
       pcpView.setInt16(16, 0, false);
       pcpView.setInt16(18, 0xffff, false);
       // Start of IPv4 octets of the client's private IP
-      // var ipOctets = ipaddr.IPv4.parse(privateIp).octets;
-      // TODO(kennysong): Use the ipaddr module!
-      var ipOctets = privateIp.split('.').map(function (n) { return parseInt(n); });
+      var ipOctets = ipaddr.IPv4.parse(privateIp).octets;
       pcpView.setInt8(20, ipOctets[0]);
       pcpView.setInt8(21, ipOctets[1]);
       pcpView.setInt8(22, ipOctets[2]);
@@ -456,8 +454,6 @@ PortControl.prototype.sendSsdpRequest = function (privateIp) {
                     'MAN: ssdp:discover\r\n' +
                     'MX: 10\r\n' +
                     'ST: urn:schemas-upnp-org:device:InternetGatewayDevice:1';
-      // TODO(kennysong): Use the arraybuffers module?
-      // var ssdpBuffer = arraybuffers.stringToArrayBuffer(ssdpStr);
       var ssdpBuffer = _this.stringToArrayBuffer(ssdpStr);
       socket.sendTo(ssdpBuffer, '239.255.255.250', 1900);
     });
@@ -483,16 +479,15 @@ PortControl.prototype.fetchControlUrl = function (ssdpResponse) {
   var _this = this;
 
   var _fetchControlUrl = new Promise(function (F, R) {
-    // Get UPnP device profile URL from the LOCATION header
-    // TODO(kennysong): Use arraybuffers module?
     var ssdpStr = _this.arrayBufferToString(ssdpResponse);
     var startIndex = ssdpStr.indexOf('LOCATION: ') + 10;
     var endIndex = ssdpStr.indexOf('\n', startIndex);
     var locationUrl = ssdpStr.substring(startIndex, endIndex);
 
     // Reject if there is no LOCATION header
-    if (startIndex === -1) {
+    if (startIndex === 9) {
       R(new Error('No LOCATION header for UPnP device'));
+      return;
     }
 
     // Get the XML device description at location URL
@@ -511,6 +506,7 @@ PortControl.prototype.fetchControlUrl = function (ssdpResponse) {
         // Reject if there is no controlUrl
         if (preIndex === -1 || startIndex === 12) {
           R(new Error('Could not parse control URL'));
+          return;
         }
 
         // Combine the controlUrl path with the locationUrl
@@ -608,9 +604,7 @@ PortControl.prototype.getPrivateIps = function () {
       var cand = candidate.candidate.candidate.split(' ');
       if (cand[7] === 'host') {
         var privateIp = cand[4];
-        // TODO(kennysong): Use ipaddr.js here
-        // if (ipaddr.IPv4.isValid(privateIp)) {
-        if (privateIp.match(/^(?:(?:25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)\.){3}(?:25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)$/).length > 0) {
+        if (ipaddr.IPv4.isValid(privateIp)) {
           if (privateIps.indexOf(privateIp) == -1) {
             privateIps.push(privateIp);
           }

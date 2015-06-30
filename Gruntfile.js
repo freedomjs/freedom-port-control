@@ -8,35 +8,26 @@ var freedomChromePath = path.dirname(require.resolve(
 
 module.exports = function(grunt) {
   grunt.initConfig({
+    pkg: grunt.file.readJSON('package.json'),
+
+    browserify: {
+      main: {
+        src: 'src/port-control.js',
+        dest: 'build/port-control.js'
+      },
+      options: {
+        browserifyOptions: {
+          debug: true,
+        }
+      }
+    },
+
     copy: {
-      build: {
-        cwd: 'src/',
-        src: ['**'],
-        dest: 'build/',
-        flatten: false,
-        filter: 'isFile',
-        expand: true
-      },
-      freedom: {
-        src: [ require.resolve('freedom') ],
-        dest: 'build/',
-        flatten: true,
-        filter: 'isFile',
-        expand: true,
-        onlyIf: 'modified'
-      },
-      freedomForChrome: {
-        cwd: freedomChromePath,
-        src: ['freedom-for-chrome.js*'],
-        dest: 'build/demo_chrome_app/',
-        flatten: true,
-        filter: 'isFile',
-        expand: true,
-        onlyIf: 'modified'
-      },
       chromeDemo: {
-        cwd: 'src/',
-        src: ['**'],
+        src: ['src/port-control.json',
+              'src/demo_chrome_app/*',
+              'build/port-control.js',
+              freedomChromePath + '/freedom-for-chrome.js*'],
         dest: 'build/demo_chrome_app/',
         flatten: true,
         filter: 'isFile',
@@ -62,6 +53,7 @@ module.exports = function(grunt) {
 
   grunt.registerTask('build', [
     'jshint',
+    'browserify',
     'copy',
   ]);
   grunt.registerTask('default', [
