@@ -42,7 +42,17 @@ To add a NAT port mapping with any protocol available,
 portControl.addMapping(50000, 50000);
 ```
 
-This method returns a promise that will resolve to the newly mapped external port number, or `-1` on failure. It also automatically refreshes the mapping every two minutes, unless `false` is passed in as the last argument.
+This method returns a promise that will resolve to a mapping object of the form ,
+```
+{
+  "internalIp": "192.168.1.50", 
+  "internalPort": 50000, 
+  "externalIp": "104.132.34.50", 
+  "externalPort": 50000
+}
+```
+
+It also automatically refreshes the mapping every two minutes, unless `false` is passed in as the last argument.
 
 You can also add a port mapping with a specific protocol:
 
