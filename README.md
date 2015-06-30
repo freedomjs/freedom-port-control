@@ -1,4 +1,4 @@
-# freedom-port-control
+# freedom.js Port Control
 
 Opens ports through a NAT with NAT-PMP, PCP, and UPnP.
 
@@ -42,7 +42,7 @@ To add a NAT port mapping with any protocol available,
 portControl.addMapping(50000, 50000);
 ```
 
-This method returns a promise that will resolve to a mapping object of the form ,
+This method returns a promise that will resolve to a mapping object of the form,
 ```
 {
   "internalIp": "192.168.1.50", 
@@ -62,7 +62,7 @@ portControl.addMappingPcp(55556, 55556);
 portControl.addMappingUpnp(55557, 55557);
 ```
 
-All of these methods return the same promise as `addMapping`, and refreshes with the default final parameter.
+All of these methods return the same promise as `addMapping`, and refreshes by default.
 
 ### IP address
 
