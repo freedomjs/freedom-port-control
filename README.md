@@ -42,7 +42,7 @@ To add a NAT port mapping with any protocol available,
 portControl.addMapping(50000, 50000);
 ```
 
-This method returns a promise that will resolve to a mapping object of the form,
+This method returns a promise that will resolve to a port mapping object of the form,
 ```
 {
   "internalIp": "192.168.1.50", 
