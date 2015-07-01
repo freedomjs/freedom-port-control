@@ -16,10 +16,18 @@ var routerIps = ['192.168.1.1', '192.168.2.1', '192.168.11.1',
   '10.0.1.1', '10.1.1.1', '10.0.0.13', '10.0.0.2', '10.0.0.138'];
 
 /**
-* A table that keeps track of the active refresh timers for port mappings
-* { externalPortNumber: intervalId, ... }
+* A table that keeps track of information about active mappings
+* { externalPortNumber1: {
+*     intervalId: number,
+*     internalPort: number,
+*     protocol: string ("natPmp", "pcp", or "upnp")
+*   }, 
+*   externalPortNumber2: { ... },
+*   ...
+* }
 */
-var mappingRefreshTimers = {};
+var activeMappings = {};
+
 
 /**
 * An object representing a port mapping returned by mapping methods
@@ -60,8 +68,8 @@ PortControl.prototype.addMapping = function (intPort, extPort, refresh) {
 * @return {Promise<number>} A promise for the external port returned by the NAT, -1 if failed
 **/
 PortControl.prototype.releaseMapping = function (extPort) {
-  var intervalId = mappingRefreshTimers[extPort];
-  delete mappingRefreshTimers[extPort];
+  var intervalId = activeMappings[extPort].intervalId;
+  delete activeMappings[extPort];
   clearInterval(intervalId);
 };
 
@@ -152,17 +160,18 @@ PortControl.prototype.addMappingPmp = function (intPort, extPort, refresh) {
   // Set refresh to be true by default, if it's undefined
   refresh = (refresh === undefined) ? true : refresh;
 
-  return _addMappingPmp().then(function (responsePort) {
+  return _addMappingPmp().then(function (mappingObj) {
     // If the mapping is successful and we want to refresh, setInterval a refresh
     // and add the interval ID to a global list
-    if (responsePort !== -1 && refresh) {
+    if (mappingObj.externalPort !== -1 && refresh) {
       var intervalId = setInterval(_this.addMappingPmp.bind(_this, intPort,
-        responsePort, false), 120 * 1000);
-      mappingRefreshTimers[responsePort] = intervalId;
+        mappingObj.externalPort, false), 120 * 1000);
+      activeMappings[mappingObj.externalPort] = {"intervalId": intervalId};
     }
-    return responsePort;
+    return mappingObj;
   });
 };
+
 
 /**
 * Send a NAT-PMP request to the router to map a port
@@ -291,15 +300,15 @@ PortControl.prototype.addMappingPcp = function (intPort, extPort, refresh) {
   // Set refresh to be true by default, if it's undefined
   refresh = (refresh === undefined) ? true : refresh;
 
-  return _addMappingPcp().then(function (responsePort) {
+  return _addMappingPcp().then(function (mappingObj) {
     // If the mapping is successful and we want to refresh, setInterval a refresh
     // and add the interval ID to a global list
-    if (responsePort !== -1 && refresh) {
+    if (mappingObj.externalPort !== -1 && refresh) {
       var intervalId = setInterval(_this.addMappingPcp.bind(_this, intPort,
-        responsePort, false), 120 * 1000);
-      mappingRefreshTimers[responsePort] = intervalId;
+        mappingObj.externalPort, false), 120 * 1000);
+      activeMappings[mappingObj.externalPort] = {"intervalId": intervalId};
     }
-    return responsePort;
+    return mappingObj;
   });
 };
 
@@ -430,15 +439,15 @@ PortControl.prototype.addMappingUpnp = function (intPort, extPort, refresh) {
   // Set refresh to be true by default, if it's undefined
   refresh = (refresh === undefined) ? true : refresh;
 
-  return _addMappingUpnp().then(function (responsePort) {
+  return _addMappingUpnp().then(function (mappingObj) {
     // If the mapping is successful and we want to refresh, setInterval a refresh
     // and add the interval ID to a global list
-    if (responsePort !== -1 && refresh) {
+    if (mappingObj.externalPort !== -1 && refresh) {
       var intervalId = setInterval(_this.addMappingUpnp.bind(_this, intPort,
-        responsePort, false), 120 * 1000);
-      mappingRefreshTimers[responsePort] = intervalId;
+        mappingObj.externalPort, false), 120 * 1000);
+      activeMappings[mappingObj.externalPort] = {"intervalId": intervalId};
     }
-    return responsePort;
+    return mappingObj;
   });
 };
 
@@ -549,12 +558,12 @@ PortControl.prototype.fetchControlUrl = function (ssdpResponse) {
 
   var _fetchControlUrl = new Promise(function (F, R) {
     var ssdpStr = _this.arrayBufferToString(ssdpResponse);
-    var startIndex = ssdpStr.indexOf('LOCATION: ') + 10;
+    var startIndex = ssdpStr.indexOf('LOCATION:') + 9;
     var endIndex = ssdpStr.indexOf('\n', startIndex);
-    var locationUrl = ssdpStr.substring(startIndex, endIndex);
+    var locationUrl = ssdpStr.substring(startIndex, endIndex).trim();
 
     // Reject if there is no LOCATION header
-    if (startIndex === 9) {
+    if (startIndex === 8) {
       R(new Error('No LOCATION header for UPnP device'));
       return;
     }
