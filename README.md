@@ -13,7 +13,7 @@ This will also build a demo Chrome app in `/build/demo_chrome_app`.
 
 ## Usage
 
-This module will allow you to control port mappings in a NAT and probe it for various configuration details.
+This module will allow you to control port mappings in a NAT and probe it for various settings.
 
 ### Probing methods
 
