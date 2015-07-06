@@ -8,6 +8,18 @@
         overflow-y: visible;
       }
 
+      input {
+        width: 50px;
+      }
+
+      h3 {
+        margin: 5px 0px;
+      }
+
+      button {
+        margin-top: 10px;
+      }
+
       #result-IP, #result-protocols, #result-PMP,
       #result-PCP, #result-UPnP, #result-any {
         font-family: monospace;
@@ -26,30 +38,46 @@
 
     <hr>
 
-    <p>Internal Port <input type="text" id="internal-port-PMP" value="50000"></p>
-    <p>External Port <input type="text" id="external-port-PMP" value="50000"></p>
-    <button id="test-PMP">Open port with NAT-PMP</button>
+    <h3>NAT-PMP</h3>
+    <div>
+      Internal Port <input type="text" id="internal-port-PMP" value="50000">
+      External Port <input type="text" id="external-port-PMP" value="50000">
+    </div>
+    <button id="add-PMP">Add mapping</button>
+    <button id="delete-PMP">Delete mapping</button>
     <div id="result-PMP"></div>
 
     <hr>
 
-    <p>Internal Port <input type="text" id="internal-port-PCP" value="50001"></p>
-    <p>External Port <input type="text" id="external-port-PCP" value="50001"></p>
-    <button id="test-PCP">Open port with PCP</button>
+    <h3>PCP</h3>
+    <div>
+      Internal Port <input type="text" id="internal-port-PCP" value="50001">
+      External Port <input type="text" id="external-port-PCP" value="50001">
+    </div>
+    <button id="add-PCP">Add mapping</button>
+    <button id="delete-PCP">Delete mapping</button>
     <div id="result-PCP"></div>
 
     <hr>
 
-    <p>Internal Port <input type="text" id="internal-port-UPnP" value="50002"></p>
-    <p>External Port <input type="text" id="external-port-UPnP" value="50002"></p>
-    <button id="test-UPnP">Open port with UPnP</button>
+    <h3>UPnP</h3>
+    <div>
+      Internal Port <input type="text" id="internal-port-UPnP" value="50002">
+      External Port <input type="text" id="external-port-UPnP" value="50002">
+    </div>
+    <button id="add-UPnP">Add mapping</button>
+    <button id="delete-UPnP">Delete mapping</button>
     <div id="result-UPnP"></div>
 
     <hr>
 
-    <p>Internal Port <input type="text" id="internal-port-any" value="50003"></p>
-    <p>External Port <input type="text" id="external-port-any" value="50003"></p>
-    <button id="test-any">Open port with any protocol</button>
+    <h3>All protocols</h3>
+    <div>
+      Internal Port <input type="text" id="internal-port-any" value="50003">
+      External Port <input type="text" id="external-port-any" value="50003">
+    </div>
+    <button id="add-any">Add mapping</button>
+    <button id="delete-any">Delete mapping</button>
     <div id="result-any"></div>
   </body>
 </html>

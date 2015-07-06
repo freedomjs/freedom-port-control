@@ -20,9 +20,10 @@
                 "externalIp": "string", "externalPort": "number"}
       },
 
-      "releaseMapping": {
+      "deleteMapping": {
         "type": "method",
-        "value": ["number"]
+        "value": ["number"],
+        "ret": "boolean"
       },
 
       "probeProtocolSupport": {
@@ -38,6 +39,12 @@
                 "externalIp": "string", "externalPort": "number"}
       },
 
+      "deleteMappingPmp": {
+        "type": "method",
+        "value": ["number"],
+        "ret": "boolean"
+      },
+
       "probePmpSupport": {
         "type": "method",
         "value": [],
@@ -51,6 +58,12 @@
                 "externalIp": "string", "externalPort": "number"}
       },
 
+      "deleteMappingPcp": {
+        "type": "method",
+        "value": ["number"],
+        "ret": "boolean"
+      },
+
       "probePcpSupport": {
         "type": "method",
         "value": [],
@@ -62,6 +75,12 @@
         "value": ["number", "number", "boolean"],
         "ret": {"internalIp": "string", "internalPort": "number",
                 "externalIp": "string", "externalPort": "number"}
+      },
+
+      "deleteMappingUpnp": {
+        "type": "method",
+        "value": ["number"],
+        "ret": "boolean"
       },
 
       "probeUpnpSupport": {

@@ -65,12 +65,25 @@ PortControl.prototype.addMapping = function (intPort, extPort, refresh) {
 * @public
 * @method releaseMapping
 * @param {string} extPort The external port of the mapping to release
-* @return {Promise<number>} A promise for the external port returned by the NAT, -1 if failed
+* @return {Promise<boolean>} True on success, false on failure
 **/
-PortControl.prototype.releaseMapping = function (extPort) {
-  var intervalId = activeMappings[extPort].intervalId;
-  delete activeMappings[extPort];
-  clearInterval(intervalId);
+PortControl.prototype.deleteMapping = function (extPort) {
+  var _this = this;
+
+  return new Promise(function (F, R) {
+    // Get the protocol that this port was mapped with; may error
+    F(activeMappings[extPort].protocol);
+  }).then(function (protocol) {
+    if (protocol === 'natPmp') {
+      return _this.deleteMappingPmp(extPort);
+    } else if (protocol === 'pcp') {
+      return _this.deleteMappingPcp(extPort);
+    } else if (protocol === 'upnp') {
+      return _this.deleteMappingUpnp(extPort);
+    }
+  }).catch(function (err) {
+    return false;
+  });
 };
 
 /**
@@ -122,11 +135,11 @@ PortControl.prototype.addMappingPmp = function (intPort, extPort, refresh) {
   mappingObj.externalPort = -1;
 
   function _addMappingPmp() {
-    // Return an array of ArrayBuffers, which are the responses of
+    // Construct an array of ArrayBuffers, which are the responses of
     // sendPmpRequest() calls on all the router IPs. An error result
     // is caught and re-passed as null.
     return Promise.all(routerIps.map(function (routerIp) {
-        return _this.sendPmpRequest(routerIp, intPort, extPort).
+        return _this.sendPmpRequest(routerIp, intPort, extPort, 7200).
             then(function (pmpResponse) { return pmpResponse; }).
             catch(function (err) { return null; });
     })).then(function (responses) {
@@ -162,33 +175,81 @@ PortControl.prototype.addMappingPmp = function (intPort, extPort, refresh) {
 
   return _addMappingPmp().then(function (mappingObj) {
     // If the mapping is successful and we want to refresh, setInterval a refresh
-    // and add the interval ID to a global list
+    var intervalId;
     if (mappingObj.externalPort !== -1 && refresh) {
-      var intervalId = setInterval(_this.addMappingPmp.bind(_this, intPort,
+      intervalId = setInterval(_this.addMappingPmp.bind(_this, intPort,
         mappingObj.externalPort, false), 120 * 1000);
-      activeMappings[mappingObj.externalPort] = {"intervalId": intervalId};
+    }
+    // If the mapping is successful, add it to activeMappings
+    if (mappingObj.externalPort !== -1) {
+      activeMappings[mappingObj.externalPort] = {
+        intervalId: intervalId,
+        internalPort: intPort,
+        protocol: 'natPmp'
+      };
     }
     return mappingObj;
   });
 };
 
+/**
+* Deletes a port mapping in the NAT with NAT-PMP
+* @public
+* @method deleteMappingPmp
+* @param {string} extPort The external port of the mapping to delete
+* @return {Promise<boolean>} True on success, false on failure
+*/
+PortControl.prototype.deleteMappingPmp = function (extPort) {
+  var _this = this;
+
+  return new Promise(function (F, R) {
+    // Retrieve internal port of this mapping; this may error
+    F(activeMappings[extPort].internalPort);
+  }).then(function (intPort) {
+    // Construct an array of ArrayBuffers, which are the responses of
+    // sendPmpRequest() calls on all the router IPs. An error result
+    // is caught and re-passed as null.
+    return Promise.all(routerIps.map(function (routerIp) {
+      return _this.sendPmpRequest(routerIp, intPort, 0, 0).
+          then(function (pmpResponse) { return pmpResponse; }).
+          catch(function (err) { return null; });
+    }));
+  }).then(function (responses) {
+    // Return true if any of the responses are successful (not null)
+    for (var i = 0; i < responses.length; i++) {
+      if (responses[i] !== null) {
+        // Check that the success code of the response is 0
+        var responseView = new DataView(responses[i].data);
+        var successCode = responseView.getUint16(2);
+        if (successCode === 0) {
+          clearInterval(activeMappings[extPort].intervalId);
+          delete activeMappings[extPort];
+          return true;
+        }
+      }
+    }
+    return false;
+  }).catch(function (err) {
+    return false;
+  });
+};
 
 /**
-* Send a NAT-PMP request to the router to map a port
+* Send a NAT-PMP request to the router to add or delete a port mapping
 * @private
 * @method sendPmpRequest
 * @param {string} routerIp The IP address that the router can be reached at
 * @param {string} intPort The internal port on the computer to map to
 * @param {string} extPort The external port on the router to map to
+* @param {string} lifetime The requested lifetime of the mapping
 * @return {Promise<{"resultCode": number, "address": string, "port": number, "data": ArrayBuffer}>}
 *         A promise that fulfills with the full NAT-PMP response object, or rejects on timeout
 */
-PortControl.prototype.sendPmpRequest = function (routerIp, intPort, extPort) {
+PortControl.prototype.sendPmpRequest = function (routerIp, intPort, extPort, lifetime) {
   var socket;
   var _this = this;
 
   var _sendPmpRequest = new Promise(function (F, R) {
-    var mappingLifetime = 7200;  // 2 hours in seconds
     socket = freedom['core.udpsocket']();
 
     // Fulfill when we get any reply (failure is on timeout in wrapper function)
@@ -205,7 +266,6 @@ PortControl.prototype.sendPmpRequest = function (routerIp, intPort, extPort) {
     // Bind a UDP port and send a NAT-PMP request
     socket.bind('0.0.0.0', 0).then(function (result) {
       // Construct the NAT-PMP map request as an ArrayBuffer
-      // Map internal port 55555 to external port 55555 w/ 120 sec lifetime
       var pmpBuffer = new ArrayBuffer(12);
       var pmpView = new DataView(pmpBuffer);
       // Version and OP fields (1 byte each)
@@ -216,7 +276,7 @@ PortControl.prototype.sendPmpRequest = function (routerIp, intPort, extPort) {
       pmpView.setInt16(4, intPort, false);
       pmpView.setInt16(6, extPort, false);
       // Mapping lifetime field (4 bytes)
-      pmpView.setInt32(8, mappingLifetime, false);
+      pmpView.setInt32(8, lifetime, false);
 
       socket.sendTo(pmpBuffer, routerIp, 5351);
     });
@@ -263,14 +323,14 @@ PortControl.prototype.addMappingPcp = function (intPort, extPort, refresh) {
 
   var _addMappingPcp = function () {
     return _this.getPrivateIps().then(function (privateIps) {
-      // Return an array of ArrayBuffers, which are the responses of
+      // Construct an array of ArrayBuffers, which are the responses of
       // sendPcpRequest() calls on all the router IPs. An error result
       // is caught and re-passed as null.
       return Promise.all(routerIps.map(function (routerIp) {
         // Choose a privateIp based on the currently selected routerIp,
         // using a longest prefix match, and send a PCP request with that IP
         var privateIp = _this.longestPrefixMatch(privateIps, routerIp);
-        return _this.sendPcpRequest(routerIp, privateIp, intPort, extPort).
+        return _this.sendPcpRequest(routerIp, privateIp, intPort, extPort, 7200).
             then(function (pcpResponse) {
               return {"pcpResponse": pcpResponse, "privateIp": privateIp};
             }).
@@ -302,13 +362,65 @@ PortControl.prototype.addMappingPcp = function (intPort, extPort, refresh) {
 
   return _addMappingPcp().then(function (mappingObj) {
     // If the mapping is successful and we want to refresh, setInterval a refresh
-    // and add the interval ID to a global list
+    var intervalId;
     if (mappingObj.externalPort !== -1 && refresh) {
-      var intervalId = setInterval(_this.addMappingPcp.bind(_this, intPort,
+      intervalId = setInterval(_this.addMappingPcp.bind(_this, intPort,
         mappingObj.externalPort, false), 120 * 1000);
-      activeMappings[mappingObj.externalPort] = {"intervalId": intervalId};
+    }
+    // If the mapping is successful, add it to activeMappings
+    if (mappingObj !== -1) {
+      activeMappings[mappingObj.externalPort] = {
+        intervalId: intervalId,
+        internalPort: intPort,
+        protocol: 'pcp'
+      };
     }
     return mappingObj;
+  });
+};
+
+/**
+* Deletes a port mapping in the NAT with PCP
+* @public
+* @method deleteMappingPcp
+* @param {string} extPort The external port of the mapping to delete
+* @return {Promise<boolean>} True on success, false on failure
+*/
+PortControl.prototype.deleteMappingPcp = function (extPort) {
+  var _this = this;
+
+  return _this.getPrivateIps().then(function (privateIps) {
+    // Get the internal port for this mapping; this may error
+    var intPort = activeMappings[extPort].internalPort;
+
+    // Construct an array of ArrayBuffers, which are the responses of
+    // sendPmpRequest() calls on all the router IPs. An error result
+    // is caught and re-passed as null.
+    return Promise.all(routerIps.map(function (routerIp) {
+        // Choose a privateIp based on the currently selected routerIp,
+        // using a longest prefix match, and send a PCP request with that IP
+        var privateIp = _this.longestPrefixMatch(privateIps, routerIp);
+        return _this.sendPcpRequest(routerIp, privateIp, intPort, 0, 0).
+            then(function (pcpResponse) { return pcpResponse; }).
+            catch(function (err) { return null; });
+      }));
+  }).then(function (responses) {
+    // Return true if any of the responses are successful (not null)
+    for (var i = 0; i < responses.length; i++) {
+      if (responses[i] !== null) {
+        // Check that the success code of the response is 0
+        var responseView = new DataView(responses[i]);
+        var successCode = responseView.getUint8(3);
+        if (successCode === 0) {
+          clearInterval(activeMappings[extPort].intervalId);
+          delete activeMappings[extPort];
+          return true;
+        } 
+      }
+    }
+    return false;
+  }).catch(function (err) {
+    return false;
   });
 };
 
@@ -320,14 +432,14 @@ PortControl.prototype.addMappingPcp = function (intPort, extPort, refresh) {
 * @param {string} privateIp The private IP address of the user's computer
 * @param {string} intPort The internal port on the computer to map to
 * @param {string} extPort The external port on the router to map to
+* @param {string} lifetime The requested lifetime of the mapping
 * @return {Promise<ArrayBuffer>} A promise that fulfills with the PCP response, or rejects on timeout
 */
-PortControl.prototype.sendPcpRequest = function (routerIp, privateIp, intPort, extPort) {
+PortControl.prototype.sendPcpRequest = function (routerIp, privateIp, intPort, extPort, lifetime) {
   var socket;
   var _this = this;
 
   var _sendPcpRequest = new Promise(function (F, R) {
-    var mappingLifetime = 7200;  // 2 hours in seconds
     socket = freedom['core.udpsocket']();
 
     // Fulfill when we get any reply (failure is on timeout in wrapper function)
@@ -349,7 +461,7 @@ PortControl.prototype.sendPcpRequest = function (routerIp, privateIp, intPort, e
       // Reserved field (2 bytes)
       pcpView.setInt16(2, 0, false);
       // Requested lifetime (4 bytes)
-      pcpView.setInt32(4, mappingLifetime, false);
+      pcpView.setInt32(4, lifetime, false);
       // Client IP address (128 bytes; we use the IPv4 -> IPv6 mapping)
       pcpView.setInt32(8, 0, false);
       pcpView.setInt32(12, 0, false);
@@ -441,17 +553,66 @@ PortControl.prototype.addMappingUpnp = function (intPort, extPort, refresh) {
 
   return _addMappingUpnp().then(function (mappingObj) {
     // If the mapping is successful and we want to refresh, setInterval a refresh
-    // and add the interval ID to a global list
+    var intervalId;
     if (mappingObj.externalPort !== -1 && refresh) {
-      var intervalId = setInterval(_this.addMappingUpnp.bind(_this, intPort,
+      intervalId = setInterval(_this.addMappingUpnp.bind(_this, intPort,
         mappingObj.externalPort, false), 120 * 1000);
-      activeMappings[mappingObj.externalPort] = {"intervalId": intervalId};
+    }
+    // If the mapping is successful, add it to activeMappings
+    if (mappingObj !== -1) {
+      activeMappings[mappingObj.externalPort] = {
+        intervalId: intervalId,
+        internalPort: intPort,
+        protocol: 'upnp'
+      };
     }
     return mappingObj;
   });
 };
 
-// TODO(kennysong): Handle multiple UPnP SSDP responses
+/**
+* Deletes a port mapping in the NAT with UPnP DeletePortMapping
+* @public
+* @method deleteMappingUpnp
+* @param {string} extPort The external port of the mapping to delete
+* @return {Promise<boolean>} True on success, false on failure
+*/
+PortControl.prototype.deleteMappingUpnp = function (extPort) {
+  var _this = this;
+
+  return _this.sendSsdpRequest().then(function (ssdpResponses) {
+    // After collecting all the SSDP responses, try to get the
+    // control URL field for each response, and return an array
+    return Promise.all(ssdpResponses.map(function (ssdpResponse) {
+      return _this.fetchControlUrl(ssdpResponse).
+          then(function (controlUrl) { return controlUrl; }).
+          catch(function (err) { return null; });
+    }));
+  }).then(function (controlUrls) {
+    // Find the first control URL that we received; we use it for DeletePortMapping
+    var controlUrl;
+    for (var i = 0; i < controlUrls.length; i++) {
+      if (controlUrls[i] !== null) {
+        controlUrl = controlUrls[i];
+        break;
+      }
+    }
+
+    // Send the DeletePortMapping request
+    if (controlUrl !== undefined) {
+      return _this.sendDeletePortMapping(controlUrl, extPort);
+    } else {
+      R(new Error("No UPnP devices have a control URL"));
+    }
+  }).then(function (result) {
+    clearInterval(activeMappings[extPort].intervalId);
+    delete activeMappings[extPort];
+    return true;
+  }).catch(function (err) {
+    return false;
+  });
+};
+
 /**
 * Runs the UPnP procedure for mapping a port
 * @private
@@ -475,7 +636,7 @@ PortControl.prototype.sendUpnpRequest = function (intPort, extPort) {
             catch(function (err) { return null; });
       }));
     }).then(function (controlUrls) {
-      // Find the first control URL that we received; we use it for AddPortMapping
+      // Find the first control URL that we received; use it for AddPortMapping
       var routerIp;
       var controlUrl;
       for (var i = 0; i < controlUrls.length; i++) {
@@ -494,14 +655,13 @@ PortControl.prototype.sendUpnpRequest = function (intPort, extPort) {
         return _this.getPrivateIps().then(function(privateIps) {
           internalIp = _this.longestPrefixMatch(privateIps, routerIp);
 
-          return _this.sendAddPortMapping.call(_this, controlUrl, internalIp,
-                                               intPort, extPort);
+          return _this.sendAddPortMapping(controlUrl, internalIp, intPort, extPort);
         });
       } else {
         R(new Error("No UPnP devices have a control URL"));
       }
     }).then(function (result) {
-      F(internalIp);  // Result is a non-descriptive success string, no need to return
+      F(internalIp);  // Result is a non-descriptive success message, no need to return
     }).catch(function (err) {
       R(err);
     });
@@ -607,7 +767,7 @@ PortControl.prototype.fetchControlUrl = function (ssdpResponse) {
 };
 
 /**
- * Actually send the AddPortMapping request to the router's control URL
+ * Send an AddPortMapping request to the router's control URL
  * @private
  * @method sendAddPortMapping
  * @param {string} controlUrl The control URL of the router
@@ -630,7 +790,7 @@ PortControl.prototype.sendAddPortMapping = function (controlUrl, privateIp, intP
                      '<NewInternalPort>' + intPort + '</NewInternalPort>' +
                      '<NewInternalClient>' + privateIp + '</NewInternalClient>' +
                      '<NewEnabled>1</NewEnabled>' +
-                     '<NewPortMappingDescription>uProxy UPnP probe</NewPortMappingDescription>' +
+                     '<NewPortMappingDescription>uProxy UPnP</NewPortMappingDescription>' +
                      '<NewLeaseDuration>' + leaseDuration + '</NewLeaseDuration>' +
                   '</u:AddPortMapping>' +
                 '</s:Body>' +
@@ -663,6 +823,59 @@ PortControl.prototype.sendAddPortMapping = function (controlUrl, privateIp, intP
   return Promise.race([
     this.countdownReject(1000, 'AddPortMapping time out'),
     _sendAddPortMapping
+  ]);
+};
+
+/**
+ * Send a DeletePortMapping request to the router's control URL
+ * @private
+ * @method sendDeletePortMapping
+ * @param {string} controlUrl The control URL of the router
+* @param {string} extPort The external port of the mapping to delete
+ * @return {string} The response string to the AddPortMapping request
+ */
+PortControl.prototype.sendDeletePortMapping = function (controlUrl, extPort) {
+  var _sendDeletePortMapping = new Promise(function (F, R) {
+    // Create the DeletePortMapping SOAP request string
+    var apm = '<?xml version="1.0"?>' +
+              '<s:Envelope s:encodingStyle="http://schemas.xmlsoap.org/soap/encoding/" xmlns:s="http://schemas.xmlsoap.org/soap/envelope/">' +
+               '<s:Body>' +
+                  '<u:DeletePortMapping xmlns:u="urn:schemas-upnp-org:service:WANIPConnection:1">' +
+                     '<NewRemoteHost></NewRemoteHost>' +
+                     '<NewExternalPort>' + extPort + '</NewExternalPort>' +
+                     '<NewProtocol>UDP</NewProtocol>' +
+                  '</u:DeletePortMapping>' +
+                '</s:Body>' +
+              '</s:Envelope>';
+
+    // Create an XMLHttpRequest that encapsulates the SOAP string
+    var xhr = new XMLHttpRequest();
+    xhr.open('POST', controlUrl, true);
+    xhr.setRequestHeader('Content-Type', 'text/xml');
+    xhr.setRequestHeader('SOAPAction', '"urn:schemas-upnp-org:service:WANIPConnection:1#DeletePortMapping"');
+
+    // Send the DeletePortMapping request
+    xhr.onreadystatechange = function () {
+      if (xhr.readyState === 4 && xhr.status === 200) {
+        // Success response to DeletePortMapping
+        F(xhr.responseText);
+      } else if (xhr.readyState === 4 && xhr.status === 500) {
+        // Error response to DeletePortMapping
+        // It seems that this almost never errors, even with invalid port numbers
+        var responseText = xhr.responseText;
+        var startIndex = responseText.indexOf('<errorDescription>') + 18;
+        var endIndex = responseText.indexOf('</errorDescription>', startIndex);
+        var errorDescription = responseText.substring(startIndex, endIndex);
+        R(new Error('DeletePortMapping Error: ' + errorDescription));
+      }
+    };
+    xhr.send(apm);
+  });
+
+  // Give _sendDeletePortMapping 1 second to run before timing out
+  return Promise.race([
+    this.countdownReject(1000, 'DeletePortMapping time out'),
+    _sendDeletePortMapping
   ]);
 };
 

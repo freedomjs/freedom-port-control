@@ -19,7 +19,7 @@ function start(instance) {
     });
   });
 
-  document.getElementById('test-PMP').addEventListener('click', function () {
+  document.getElementById('add-PMP').addEventListener('click', function () {
     var intPort = document.getElementById('internal-port-PMP').value;
     var extPort = document.getElementById('external-port-PMP').value;
     portControl.addMappingPmp(intPort, extPort, false).then(function (mappingObj) {
@@ -32,7 +32,18 @@ function start(instance) {
     });
   });
 
-  document.getElementById('test-PCP').addEventListener('click', function () {
+  document.getElementById('delete-PMP').addEventListener('click', function () {
+    var extPort = document.getElementById('external-port-PMP').value;
+    portControl.deleteMappingPmp(extPort).then(function (deleteResult) {
+      if (deleteResult) {
+        document.getElementById('result-PMP').innerText = "Mapping deleted.";
+      } else {
+        document.getElementById('result-PMP').innerText = "Mapping could not be deleted.";
+      }
+    });
+  });
+
+  document.getElementById('add-PCP').addEventListener('click', function () {
     var intPort = document.getElementById('internal-port-PCP').value;
     var extPort = document.getElementById('external-port-PCP').value;
     portControl.addMappingPcp(intPort, extPort, false).then(function (mappingObj) {
@@ -45,7 +56,18 @@ function start(instance) {
     });
   });
 
-  document.getElementById('test-UPnP').addEventListener('click', function () {
+  document.getElementById('delete-PCP').addEventListener('click', function () {
+    var extPort = document.getElementById('external-port-PCP').value;
+    portControl.deleteMappingPcp(extPort).then(function (deleteResult) {
+      if (deleteResult) {
+        document.getElementById('result-PCP').innerText = "Mapping deleted.";
+      } else {
+        document.getElementById('result-PCP').innerText = "Mapping could not be deleted.";
+      }
+    });
+  });
+
+  document.getElementById('add-UPnP').addEventListener('click', function () {
     var intPort = document.getElementById('internal-port-UPnP').value;
     var extPort = document.getElementById('external-port-UPnP').value;
     portControl.addMappingUpnp(intPort, extPort, false).then(function (mappingObj) {
@@ -58,7 +80,18 @@ function start(instance) {
     });
   });
 
-  document.getElementById('test-any').addEventListener('click', function () {
+  document.getElementById('delete-UPnP').addEventListener('click', function () {
+    var extPort = document.getElementById('external-port-UPnP').value;
+    portControl.deleteMappingUpnp(extPort).then(function (deleteResult) {
+      if (deleteResult) {
+        document.getElementById('result-UPnP').innerText = "Mapping deleted.";
+      } else {
+        document.getElementById('result-UPnP').innerText = "Mapping could not be deleted.";
+      }
+    });
+  });
+
+  document.getElementById('add-any').addEventListener('click', function () {
     var intPort = document.getElementById('internal-port-any').value;
     var extPort = document.getElementById('external-port-any').value;
     portControl.addMapping(intPort, extPort, false).then(function (mappingObj) {
@@ -67,6 +100,17 @@ function start(instance) {
             JSON.stringify(mappingObj, null, 2);
       } else {
         document.getElementById('result-any').innerText = "All protocols failed.";
+      }
+    });
+  });
+
+  document.getElementById('delete-any').addEventListener('click', function () {
+    var extPort = document.getElementById('external-port-any').value;
+    portControl.deleteMapping(extPort).then(function (deleteResult) {
+      if (deleteResult) {
+        document.getElementById('result-any').innerText = "Mapping deleted.";
+      } else {
+        document.getElementById('result-any').innerText = "Mapping could not be deleted.";
       }
     });
   });
