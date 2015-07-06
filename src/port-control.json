@@ -93,6 +93,11 @@
         "type": "method",
         "value": [],
         "ret": ["array", "string"]
+      },
+
+      "close": {
+        "type": "method",
+        "value": []
       }
     }
   },

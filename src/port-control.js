@@ -950,6 +950,30 @@ PortControl.prototype.closeSocket = function (socket) {
 };
 
 /**
+* Deletes all the currently active port mappings
+* @public
+* @method close
+*/
+PortControl.prototype.close = function () {
+  var _this = this;
+
+  return new Promise(function (F, R) {
+    // Get all the keys (extPorts) of activeMappings
+    var extPorts = [];
+    for (var extPort in activeMappings) {
+      if (activeMappings.hasOwnProperty(extPort)) {
+        extPorts.push(extPort);
+      }
+    }
+
+    // Delete them all
+    Promise.all(extPorts.map(_this.deleteMapping.bind(_this))).then(function () {
+      F();
+    });
+  });
+};
+
+/**
 * Takes a list of IP addresses (a user's private IPs) and an IP address for a
 * router/subnet, and returns the IP that has the longest prefix match with the
 * router's IP
