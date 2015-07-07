@@ -6,8 +6,8 @@ var PortControl = function (dispatchEvent) {
 };
 
 /**
- * List of popular router default IPs
- * http://www.techspot.com/guides/287-default-router-ip-addresses/
+* List of popular router default IPs
+* http://www.techspot.com/guides/287-default-router-ip-addresses/
 */
 var routerIps = ['192.168.1.1', '192.168.2.1', '192.168.11.1',
   '192.168.0.1', '192.168.0.30', '192.168.0.50', '192.168.20.1',
@@ -190,8 +190,14 @@ PortControl.prototype.addMappingPmp = function (intPort, extPort, lifetime) {
         mapping.externalPort, 0), 24*60*60*1000);
       mapping.timeoutId = timeoutId;
     }
+    // If we're not refreshing, delete the entry from activeMapping at expiration
+    else if (mapping.externalPort !== -1) {
+      setTimeout(function () {
+        delete activeMappings[mapping.externalPort];
+      }, mapping.lifetime*1000);
+    }
 
-    // If the mapping is successful, add it to activeMappings
+    // If the mapping operation is successful, add it to activeMappings
     if (mapping.externalPort !== -1) {
       activeMappings[mapping.externalPort] = mapping;
     }
@@ -390,9 +396,15 @@ PortControl.prototype.addMappingPcp = function (intPort, extPort, lifetime) {
         mapping.externalPort, 0), 24*60*60*1000);
       mapping.timeoutId = timeoutId;
     }
+    // If we're not refreshing, delete the entry from activeMapping at expiration
+    else if (mapping.externalPort !== -1) {
+      setTimeout(function () {
+        delete activeMappings[mapping.externalPort];
+      }, mapping.lifetime*1000);
+    }
 
-    // If the mapping is successful, add it to activeMappings
-    if (mapping !== -1) {
+    // If the mapping operation is successful, add it to activeMappings
+    if (mapping.externalPort !== -1) {
       activeMappings[mapping.externalPort] = mapping;
     }
     return mapping;
@@ -586,8 +598,15 @@ PortControl.prototype.addMappingUpnp = function (intPort, extPort, lifetime) {
     // Note: We never refresh for UPnP as the requested lifetime is always
     // the actual lifetime of the mapping, and 0 is infinity per the protocol
 
-    // If the mapping is successful, add it to activeMappings
-    if (mapping !== -1) {
+    // Delete the entry from activeMapping at expiration
+    if (mapping.externalPort !== -1 && lifetime !== 0) {
+      setTimeout(function () {
+        delete activeMappings[mapping.externalPort];
+      }, mapping.lifetime*1000);
+    }
+
+    // If the mapping operation is successful, add it to activeMappings
+    if (mapping.externalPort !== -1) {
       activeMappings[mapping.externalPort] = mapping;
     }
     return mapping;
@@ -712,7 +731,7 @@ PortControl.prototype.sendSsdpRequest = function () {
   // Bind a socket and send the SSDP request
   socket.bind('0.0.0.0', 0).then(function (result) {
     // Construct and send a UPnP SSDP message
-    var ssdpStr = 'M-SEARCH * HTTP/1.1\r\n' +
+    var ssdpStr = 'M-SEARCH* HTTP/1.1\r\n' +
                   'HOST: 239.255.255.250:1900\r\n' +
                   'MAN: ssdp:discover\r\n' +
                   'MX: 10\r\n' +
@@ -731,12 +750,12 @@ PortControl.prototype.sendSsdpRequest = function () {
 };
 
 /**
- * Fetch the control URL from the information provided in the SSDP response
- * @private
- * @method fetchControlUrl
- * @param {ArrayBuffer} ssdpResponse The ArrayBuffer response to the SSDP message
- * @return {string} The string of the control URL for the router
- */
+* Fetch the control URL from the information provided in the SSDP response
+* @private
+* @method fetchControlUrl
+* @param {ArrayBuffer} ssdpResponse The ArrayBuffer response to the SSDP message
+* @return {string} The string of the control URL for the router
+*/
 PortControl.prototype.fetchControlUrl = function (ssdpResponse) {
   var _this = this;
 
@@ -791,16 +810,16 @@ PortControl.prototype.fetchControlUrl = function (ssdpResponse) {
 };
 
 /**
- * Send an AddPortMapping request to the router's control URL
- * @private
- * @method sendAddPortMapping
- * @param {string} controlUrl The control URL of the router
- * @param {string} privateIp The private IP address of the user's computer
- * @param {string} intPort The internal port on the computer to map to
- * @param {string} extPort The external port on the router to map to
- * @param {number} lifetime Seconds that the mapping will last
- * @return {string} The response string to the AddPortMapping request
- */
+* Send an AddPortMapping request to the router's control URL
+* @private
+* @method sendAddPortMapping
+* @param {string} controlUrl The control URL of the router
+* @param {string} privateIp The private IP address of the user's computer
+* @param {string} intPort The internal port on the computer to map to
+* @param {string} extPort The external port on the router to map to
+* @param {number} lifetime Seconds that the mapping will last
+* @return {string} The response string to the AddPortMapping request
+*/
 PortControl.prototype.sendAddPortMapping = function (controlUrl, privateIp, intPort, extPort, lifetime) {
   var _sendAddPortMapping = new Promise(function (F, R) {
 
@@ -851,13 +870,13 @@ PortControl.prototype.sendAddPortMapping = function (controlUrl, privateIp, intP
 };
 
 /**
- * Send a DeletePortMapping request to the router's control URL
- * @private
- * @method sendDeletePortMapping
- * @param {string} controlUrl The control URL of the router
+* Send a DeletePortMapping request to the router's control URL
+* @private
+* @method sendDeletePortMapping
+* @param {string} controlUrl The control URL of the router
 * @param {string} extPort The external port of the mapping to delete
- * @return {string} The response string to the AddPortMapping request
- */
+* @return {string} The response string to the AddPortMapping request
+*/
 PortControl.prototype.sendDeletePortMapping = function (controlUrl, extPort) {
   var _sendDeletePortMapping = new Promise(function (F, R) {
     // Create the DeletePortMapping SOAP request string
@@ -901,6 +920,18 @@ PortControl.prototype.sendDeletePortMapping = function (controlUrl, extPort) {
     this.countdownReject(1000, 'DeletePortMapping time out'),
     _sendDeletePortMapping
   ]);
+};
+
+/**
+* Returns the current value of activeMappings
+* @public
+* @method getActiveMappings
+* @return {Promise<Array<Mapping>>} A promise that resolves to activeMappings
+*/
+PortControl.prototype.getActiveMappings = function () {
+  return new Promise(function (F, R) {
+    F(activeMappings);
+  });
 };
 
 /**
@@ -1036,7 +1067,7 @@ PortControl.prototype.longestPrefixMatch = function (ipList, routerIp) {
 * @return {number} A random number between min and max
 */
 PortControl.prototype.randInt = function (min, max) {
-  return Math.floor(Math.random() * (max - min + 1)) + min;
+  return Math.floor(Math.random()* (max - min + 1)) + min;
 };
 
 /**

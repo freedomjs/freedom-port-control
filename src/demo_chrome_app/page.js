@@ -19,6 +19,13 @@ function start(instance) {
     });
   });
 
+  document.getElementById('mappings').addEventListener('click', function () {
+    portControl.getActiveMappings().then(function (activeMappings) {
+      document.getElementById('result-mappings').innerText =
+          JSON.stringify(activeMappings, null, 2);
+    });
+  });
+
   document.getElementById('add-PMP').addEventListener('click', function () {
     var intPort = document.getElementById('internal-port-PMP').value;
     var extPort = document.getElementById('external-port-PMP').value;
