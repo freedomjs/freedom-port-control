@@ -25,6 +25,7 @@ var routerIps = ['192.168.1.1', '192.168.2.1', '192.168.11.1',
 * @property {number} lifetime The actual (response) lifetime of the mapping
 * @property {string} protocol The protocol used to make the mapping ('natPmp', 'pcp', 'upnp')
 * @property {number} timeoutId The timeout ID if the mapping is refreshed
+* @property {array} nonce Only for PCP; the nonce field for deletion
 */
 
 /**
@@ -364,6 +365,9 @@ PortControl.prototype.addMappingPcp = function (intPort, extPort, lifetime) {
           mapping.externalIp = extIp;
           mapping.internalIp = responses[i].privateIp;
           mapping.lifetime = responseView.getUint32(4);
+          mapping.nonce = [responseView.getUint32(24), 
+                           responseView.getUint32(28),
+                           responseView.getUint32(32)];
         }
       }
       return mapping;
@@ -406,8 +410,9 @@ PortControl.prototype.deleteMappingPcp = function (extPort) {
   var _this = this;
 
   return _this.getPrivateIps().then(function (privateIps) {
-    // Get the internal port for this mapping; this may error
+    // Get the internal port and nonce for this mapping; this may error
     var intPort = activeMappings[extPort].internalPort;
+    var nonce = activeMappings[extPort].nonce;
 
     // Construct an array of ArrayBuffers, which are the responses of
     // sendPmpRequest() calls on all the router IPs. An error result
@@ -416,7 +421,7 @@ PortControl.prototype.deleteMappingPcp = function (extPort) {
         // Choose a privateIp based on the currently selected routerIp,
         // using a longest prefix match, and send a PCP request with that IP
         var privateIp = _this.longestPrefixMatch(privateIps, routerIp);
-        return _this.sendPcpRequest(routerIp, privateIp, intPort, 0, 0).
+        return _this.sendPcpRequest(routerIp, privateIp, intPort, 0, 0, nonce).
             then(function (pcpResponse) { return pcpResponse; }).
             catch(function (err) { return null; });
       }));
@@ -449,10 +454,12 @@ PortControl.prototype.deleteMappingPcp = function (extPort) {
 * @param {string} intPort The internal port on the computer to map to
 * @param {string} extPort The external port on the router to map to
 * @param {number} lifetime Seconds that the mapping will last
+* @param {array} nonce (Optional) A specified nonce for the PCP request
 * @return {Promise<ArrayBuffer>} A promise that fulfills with the PCP response
 *                                or rejects on timeout
 */
-PortControl.prototype.sendPcpRequest = function (routerIp, privateIp, intPort, extPort, lifetime) {
+PortControl.prototype.sendPcpRequest = function (routerIp, privateIp, intPort, 
+                                                 extPort, lifetime, nonce) {
   var socket;
   var _this = this;
 
@@ -491,9 +498,14 @@ PortControl.prototype.sendPcpRequest = function (routerIp, privateIp, intPort, e
       pcpView.setInt8(22, ipOctets[2]);
       pcpView.setInt8(23, ipOctets[3]);
       // Mapping Nonce (12 bytes)
-      pcpView.setInt32(24, _this.randInt(0, 0xffffffff), false);
-      pcpView.setInt32(28, _this.randInt(0, 0xffffffff), false);
-      pcpView.setInt32(32, _this.randInt(0, 0xffffffff), false);
+      if (nonce === undefined) {
+        nonce = [_this.randInt(0, 0xffffffff), 
+                 _this.randInt(0, 0xffffffff), 
+                 _this.randInt(0, 0xffffffff)];
+      }
+      pcpView.setInt32(24, nonce[0], false);
+      pcpView.setInt32(28, nonce[1], false);
+      pcpView.setInt32(32, nonce[2], false);
       // Protocol (1 byte)
       pcpView.setInt8(36, 17);
       // Reserved (3 bytes)
