@@ -13,7 +13,7 @@ This will also build a demo Chrome app in `/build/demo_chrome_app`.
 
 ## Usage
 
-There are two types of methods: probing and control. Probing methods allow you to determine if a specific protocol is supported, and control methods allow you to open a specific port with a protocol.
+This module will allow you to control port mappings in a NAT and probe it for various settings.
 
 ### Probing methods
 
@@ -34,7 +34,7 @@ portControl.probeUpnpSupport();
 ```
 All of these methods return a promise that will resolve to a boolean value.
 
-### Control methods
+### Add a port mapping
 
 To add a NAT port mapping with any protocol available,
 
@@ -63,6 +63,26 @@ portControl.addMappingUpnp(55557, 55557);
 ```
 
 All of these methods return the same promise as `addMapping`, and refreshes by default.
+
+### Delete port mapping
+
+To delete a NAT port mapping, use,
+
+```
+portControl.deleteMapping(55555);  // 55555 is the external port of the mapping
+```
+
+This will delete the module's record of this mapping and also attempt to delete it from the NAT's routing tables. The method will resolve to a boolean, which is `true` if it succeeded and `false` otherwise.
+
+There are also methods for specific protocols,
+
+```
+portControl.deleteMappingPmp(55555);
+portControl.deleteMappingPcp(55556);
+portControl.deleteMappingUpnp(55557);
+```
+
+
 
 ### IP address
 
