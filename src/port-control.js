@@ -60,10 +60,10 @@ PortControl.prototype.addMapping = function (intPort, extPort, lifetime) {
 };
 
 /**
-* Stop refreshing an existing port mapping
+* Delete the port mapping locally and from the router, and stop refreshes
 * @public
-* @method releaseMapping
-* @param {string} extPort The external port of the mapping to release
+* @method deleteMapping
+* @param {string} extPort The external port of the mapping to delete
 * @return {Promise<boolean>} True on success, false on failure
 **/
 PortControl.prototype.deleteMapping = function (extPort) {
