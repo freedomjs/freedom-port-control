@@ -40,8 +40,8 @@ var activeMappings = {};
 * Add a port mapping through the NAT with any protocol that works
 * @public
 * @method addMapping
-* @param {string} intPort The internal port on the computer to map to
-* @param {string} extPort The external port on the router to map to
+* @param {number} intPort The internal port on the computer to map to
+* @param {number} extPort The external port on the router to map to
 * @param {number} lifetime Seconds that the mapping will last
 *                          0 is infinity; handled differently per protocol
 * @return {Promise<Mapping>} A promise for the port mapping object
@@ -63,7 +63,7 @@ PortControl.prototype.addMapping = function (intPort, extPort, lifetime) {
 * Delete the port mapping locally and from the router, and stop refreshes
 * @public
 * @method deleteMapping
-* @param {string} extPort The external port of the mapping to delete
+* @param {number} extPort The external port of the mapping to delete
 * @return {Promise<boolean>} True on success, false on failure
 **/
 PortControl.prototype.deleteMapping = function (extPort) {
@@ -123,8 +123,8 @@ PortControl.prototype.probePmpSupport = function () {
 * and automatically refresh the mapping every two minutes
 * @public
 * @method addMappingPmp
-* @param {string} intPort The internal port on the computer to map to
-* @param {string} extPort The external port on the router to map to
+* @param {number} intPort The internal port on the computer to map to
+* @param {number} extPort The external port on the router to map to
 * @param {number} lifetime Seconds that the mapping will last
 *                          0 is infinity, i.e. a refresh every 24 hours
 * @return {Promise<Mapping>} A promise for the port mapping object
@@ -211,7 +211,7 @@ PortControl.prototype.addMappingPmp = function (intPort, extPort, lifetime) {
 * Deletes a port mapping in the NAT with NAT-PMP
 * @public
 * @method deleteMappingPmp
-* @param {string} extPort The external port of the mapping to delete
+* @param {number} extPort The external port of the mapping to delete
 * @return {Promise<boolean>} True on success, false on failure
 */
 PortControl.prototype.deleteMappingPmp = function (extPort) {
@@ -254,8 +254,8 @@ PortControl.prototype.deleteMappingPmp = function (extPort) {
 * @private
 * @method sendPmpRequest
 * @param {string} routerIp The IP address that the router can be reached at
-* @param {string} intPort The internal port on the computer to map to
-* @param {string} extPort The external port on the router to map to
+* @param {number} intPort The internal port on the computer to map to
+* @param {number} extPort The external port on the router to map to
 * @param {number} lifetime Seconds that the mapping will last
 * @return {Promise<{"resultCode": number, "address": string, "port": number, "data": ArrayBuffer}>}
 *         A promise that fulfills with the full NAT-PMP response object, or rejects on timeout
@@ -326,8 +326,8 @@ PortControl.prototype.probePcpSupport = function () {
 * and automatically refresh the mapping every two minutes
 * @public
 * @method addMappingPcp
-* @param {string} intPort The internal port on the computer to map to
-* @param {string} extPort The external port on the router to map to
+* @param {number} intPort The internal port on the computer to map to
+* @param {number} extPort The external port on the router to map to
 * @param {number} lifetime Seconds that the mapping will last
 *                          0 is infinity, i.e. a refresh every 24 hours
 * @return {Promise<Mapping>} A promise for the port mapping object 
@@ -419,7 +419,7 @@ PortControl.prototype.addMappingPcp = function (intPort, extPort, lifetime) {
 * Deletes a port mapping in the NAT with PCP
 * @public
 * @method deleteMappingPcp
-* @param {string} extPort The external port of the mapping to delete
+* @param {number} extPort The external port of the mapping to delete
 * @return {Promise<boolean>} True on success, false on failure
 */
 PortControl.prototype.deleteMappingPcp = function (extPort) {
@@ -467,8 +467,8 @@ PortControl.prototype.deleteMappingPcp = function (extPort) {
 * @method sendPcpRequest
 * @param {string} routerIp The IP address that the router can be reached at
 * @param {string} privateIp The private IP address of the user's computer
-* @param {string} intPort The internal port on the computer to map to
-* @param {string} extPort The external port on the router to map to
+* @param {number} intPort The internal port on the computer to map to
+* @param {number} extPort The external port on the router to map to
 * @param {number} lifetime Seconds that the mapping will last
 * @param {array} nonce (Optional) A specified nonce for the PCP request
 * @return {Promise<ArrayBuffer>} A promise that fulfills with the PCP response
@@ -567,8 +567,8 @@ PortControl.prototype.probeUpnpSupport = function () {
 * Makes a port mapping in the NAT with UPnP AddPortMapping
 * @public
 * @method addMappingUpnp
-* @param {string} intPort The internal port on the computer to map to
-* @param {string} extPort The external port on the router to map to
+* @param {number} intPort The internal port on the computer to map to
+* @param {number} extPort The external port on the router to map to
 * @param {number} lifetime Seconds that the mapping will last
 *                          0 is infinity; a static AddPortMapping request
 * @return {Promise<Mapping>} A promise for the port mapping object 
@@ -621,7 +621,7 @@ PortControl.prototype.addMappingUpnp = function (intPort, extPort, lifetime) {
 * Deletes a port mapping in the NAT with UPnP DeletePortMapping
 * @public
 * @method deleteMappingUpnp
-* @param {string} extPort The external port of the mapping to delete
+* @param {number} extPort The external port of the mapping to delete
 * @return {Promise<boolean>} True on success, false on failure
 */
 PortControl.prototype.deleteMappingUpnp = function (extPort) {
@@ -662,8 +662,8 @@ PortControl.prototype.deleteMappingUpnp = function (extPort) {
 * Runs the UPnP procedure for mapping a port
 * @private
 * @method sendUpnpRequest
-* @param {string} intPort The internal port on the computer to map to
-* @param {string} extPort The external port on the router to map to
+* @param {number} intPort The internal port on the computer to map to
+* @param {number} extPort The external port on the router to map to
 * @param {number} lifetime Seconds that the mapping will last
 * @return {Promise<string>} A promise that fulfills with the internal IP of the 
 *                           mapping, or rejects on timeout.
@@ -819,8 +819,8 @@ PortControl.prototype.fetchControlUrl = function (ssdpResponse) {
 * @method sendAddPortMapping
 * @param {string} controlUrl The control URL of the router
 * @param {string} privateIp The private IP address of the user's computer
-* @param {string} intPort The internal port on the computer to map to
-* @param {string} extPort The external port on the router to map to
+* @param {number} intPort The internal port on the computer to map to
+* @param {number} extPort The external port on the router to map to
 * @param {number} lifetime Seconds that the mapping will last
 * @return {string} The response string to the AddPortMapping request
 */
@@ -878,7 +878,7 @@ PortControl.prototype.sendAddPortMapping = function (controlUrl, privateIp, intP
 * @private
 * @method sendDeletePortMapping
 * @param {string} controlUrl The control URL of the router
-* @param {string} extPort The external port of the mapping to delete
+* @param {number} extPort The external port of the mapping to delete
 * @return {string} The response string to the AddPortMapping request
 */
 PortControl.prototype.sendDeletePortMapping = function (controlUrl, extPort) {
