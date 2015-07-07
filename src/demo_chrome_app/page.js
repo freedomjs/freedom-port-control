@@ -5,8 +5,9 @@ function start(instance) {
   portControl = instance();
 
   document.getElementById('test-IP').addEventListener('click', function () {
-    portControl.getPrivateIps().then(function (privateIp) {
-      document.getElementById('result-IP').innerText = "Your private IP addresses are: " + privateIp;
+    portControl.getPrivateIps().then(function (privateIps) {
+      document.getElementById('result-IP').innerText = "Your private IP addresses are: " +
+        JSON.stringify(privateIps, null, 2);
     }).catch(function (err) {
       document.getElementById('result-IP').innerText = err.message;
     });

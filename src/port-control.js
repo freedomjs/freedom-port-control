@@ -1,5 +1,4 @@
 var ipaddr = require('ipaddr.js');
-// TODO(kennysong): IPv6 support?
 
 var PortControl = function (dispatchEvent) {
   this.dispatchEvent = dispatchEvent;
@@ -45,7 +44,8 @@ var activeMappings = {};
 * @param {string} extPort The external port on the router to map to
 * @param {number} lifetime Seconds that the mapping will last
 *                          0 is infinity; handled differently per protocol
-* @return {Promise<Mapping>} A promise for the port mapping object (externalPort === -1 on failure)
+* @return {Promise<Mapping>} A promise for the port mapping object
+*                            Mapping.externalPort === -1 on failure
 **/
 PortControl.prototype.addMapping = function (intPort, extPort, lifetime) {
   var _this = this;
@@ -71,14 +71,14 @@ PortControl.prototype.deleteMapping = function (extPort) {
 
   return new Promise(function (F, R) {
     // Get the protocol that this port was mapped with; may error
-    F(activeMappings[extPort].protocol);
-  }).then(function (protocol) {
+    var protocol = activeMappings[extPort].protocol;
+
     if (protocol === 'natPmp') {
-      return _this.deleteMappingPmp(extPort);
+      F(_this.deleteMappingPmp(extPort));
     } else if (protocol === 'pcp') {
-      return _this.deleteMappingPcp(extPort);
+      F(_this.deleteMappingPcp(extPort));
     } else if (protocol === 'upnp') {
-      return _this.deleteMappingUpnp(extPort);
+      F(_this.deleteMappingUpnp(extPort));
     }
   }).catch(function (err) {
     return false;
@@ -95,10 +95,11 @@ PortControl.prototype.deleteMapping = function (extPort) {
 PortControl.prototype.probeProtocolSupport = function () {
   return Promise.all([this.probePmpSupport(), this.probePcpSupport(),
     this.probeUpnpSupport()]).then(function (support) {
-      var protocolSupport = {};
-      protocolSupport.natPmp = support[0];
-      protocolSupport.pcp = support[1];
-      protocolSupport.upnp = support[2];
+      var protocolSupport = {
+        natPmp: support[0],
+        pcp: support[1],
+        upnp: support[2]
+      };
       return protocolSupport;
     });
 };
@@ -126,7 +127,8 @@ PortControl.prototype.probePmpSupport = function () {
 * @param {string} extPort The external port on the router to map to
 * @param {number} lifetime Seconds that the mapping will last
 *                          0 is infinity, i.e. a refresh every 24 hours
-* @return {Promise<Mapping>} A promise for the port mapping object (externalPort === -1 on failure)
+* @return {Promise<Mapping>} A promise for the port mapping object
+*                            Mapping.externalPort === -1 on failure
 */
 PortControl.prototype.addMappingPmp = function (intPort, extPort, lifetime) {
   var _this = this;
@@ -258,7 +260,8 @@ PortControl.prototype.deleteMappingPmp = function (extPort) {
 * @return {Promise<{"resultCode": number, "address": string, "port": number, "data": ArrayBuffer}>}
 *         A promise that fulfills with the full NAT-PMP response object, or rejects on timeout
 */
-PortControl.prototype.sendPmpRequest = function (routerIp, intPort, extPort, lifetime) {
+PortControl.prototype.sendPmpRequest = function (routerIp, intPort, extPort, 
+                                                 lifetime) {
   var socket;
   var _this = this;
 
@@ -350,7 +353,8 @@ PortControl.prototype.addMappingPcp = function (intPort, extPort, lifetime) {
         // Choose a privateIp based on the currently selected routerIp,
         // using a longest prefix match, and send a PCP request with that IP
         var privateIp = _this.longestPrefixMatch(privateIps, routerIp);
-        return _this.sendPcpRequest(routerIp, privateIp, intPort, extPort, reqLifetime).
+        return _this.sendPcpRequest(routerIp, privateIp, intPort, extPort, 
+                                    reqLifetime).
             then(function (pcpResponse) {
               return {"pcpResponse": pcpResponse, "privateIp": privateIp};
             }).
@@ -396,7 +400,7 @@ PortControl.prototype.addMappingPcp = function (intPort, extPort, lifetime) {
         mapping.externalPort, 0), 24*60*60*1000);
       mapping.timeoutId = timeoutId;
     }
-    // If we're not refreshing, delete the entry from activeMapping at expiration
+    // If we're not refreshing, delete the entry in activeMapping at expiration
     else if (mapping.externalPort !== -1) {
       setTimeout(function () {
         delete activeMappings[mapping.externalPort];
@@ -661,8 +665,8 @@ PortControl.prototype.deleteMappingUpnp = function (extPort) {
 * @param {string} intPort The internal port on the computer to map to
 * @param {string} extPort The external port on the router to map to
 * @param {number} lifetime Seconds that the mapping will last
-* @return {Promise<string>} A promise that fulfills with the internal IP of the mapping,
-*                           or rejects on timeout.
+* @return {Promise<string>} A promise that fulfills with the internal IP of the 
+*                           mapping, or rejects on timeout.
 */
 PortControl.prototype.sendUpnpRequest = function (intPort, extPort, lifetime) {
   var _this = this;
@@ -929,16 +933,15 @@ PortControl.prototype.sendDeletePortMapping = function (controlUrl, extPort) {
 * @return {Promise<Array<Mapping>>} A promise that resolves to activeMappings
 */
 PortControl.prototype.getActiveMappings = function () {
-  return new Promise(function (F, R) {
-    F(activeMappings);
-  });
+  return Promise.resolve(activeMappings);
 };
 
 /**
 * Return the private IP addresses of the computer
 * @public
 * @method getPrivateIps
-* @return {Promise<string>} A promise that fulfills with a list of IP address, or rejects on timeout
+* @return {Promise<string>} A promise that fulfills with a list of IP address, 
+*                           or rejects on timeout
 */
 PortControl.prototype.getPrivateIps = function () {
   var privateIps = [];
