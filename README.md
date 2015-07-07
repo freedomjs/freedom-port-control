@@ -65,7 +65,7 @@ portControl.addMappingPcp(55556, 55556, 7200);
 portControl.addMappingUpnp(55557, 55557, 7200);
 ```
 
-All of these methods return the same promise as `addMapping` and refreshes similarly.
+All of these methods return the same promise as `addMapping()` and refresh similarly.
 
 ### Delete port mapping
 
