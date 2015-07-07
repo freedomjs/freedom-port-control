@@ -15,9 +15,11 @@
     "port-control": {
       "addMapping": {
         "type": "method",
-        "value": ["number", "number", "boolean"],
+        "value": ["number", "number", "number"],
         "ret": {"internalIp": "string", "internalPort": "number",
-                "externalIp": "string", "externalPort": "number"}
+                "externalIp": "string", "externalPort": "number",
+                "lifetime": "number", "protocol": "string",
+                "timeoutId": "number"}
       },
 
       "deleteMapping": {
@@ -32,33 +34,22 @@
         "ret": {"natPmp": "boolean", "pcp": "boolean", "upnp": "boolean"}
       },
 
-      "addMappingPmp": {
-        "type": "method",
-        "value": ["number", "number", "boolean"],
-        "ret": {"internalIp": "string", "internalPort": "number",
-                "externalIp": "string", "externalPort": "number"}
-      },
-
-      "deleteMappingPmp": {
-        "type": "method",
-        "value": ["number"],
-        "ret": "boolean"
-      },
-
       "probePmpSupport": {
         "type": "method",
         "value": [],
         "ret": "boolean"
       },
 
-      "addMappingPcp": {
+      "addMappingPmp": {
         "type": "method",
-        "value": ["number", "number", "boolean"],
+        "value": ["number", "number", "number"],
         "ret": {"internalIp": "string", "internalPort": "number",
-                "externalIp": "string", "externalPort": "number"}
+                "externalIp": "string", "externalPort": "number",
+                "lifetime": "number", "protocol": "string",
+                "timeoutId": "number"}
       },
 
-      "deleteMappingPcp": {
+      "deleteMappingPmp": {
         "type": "method",
         "value": ["number"],
         "ret": "boolean"
@@ -70,14 +61,16 @@
         "ret": "boolean"
       },
 
-      "addMappingUpnp": {
+      "addMappingPcp": {
         "type": "method",
-        "value": ["number", "number", "boolean"],
+        "value": ["number", "number", "number"],
         "ret": {"internalIp": "string", "internalPort": "number",
-                "externalIp": "string", "externalPort": "number"}
+                "externalIp": "string", "externalPort": "number",
+                "lifetime": "number", "protocol": "string",
+                "timeoutId": "number"}
       },
 
-      "deleteMappingUpnp": {
+      "deleteMappingPcp": {
         "type": "method",
         "value": ["number"],
         "ret": "boolean"
@@ -86,6 +79,21 @@
       "probeUpnpSupport": {
         "type": "method",
         "value": [],
+        "ret": "boolean"
+      },
+
+      "addMappingUpnp": {
+        "type": "method",
+        "value": ["number", "number", "number"],
+        "ret": {"internalIp": "string", "internalPort": "number",
+                "externalIp": "string", "externalPort": "number",
+                "lifetime": "number", "protocol": "string",
+                "timeoutId": "number"}
+      },
+
+      "deleteMappingUpnp": {
+        "type": "method",
+        "value": ["number"],
         "ret": "boolean"
       },
 

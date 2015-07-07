@@ -21,7 +21,7 @@
       }
 
       #result-IP, #result-protocols, #result-PMP,
-      #result-PCP, #result-UPnP, #result-any {
+      #result-PCP, #result-UPnP, #result-all {
         font-family: monospace;
         font-size: 12px;
       }
@@ -42,6 +42,7 @@
     <div>
       Internal Port <input type="text" id="internal-port-PMP" value="50000">
       External Port <input type="text" id="external-port-PMP" value="50000">
+      Lifetime <input type="text" id="lifetime-PMP" value="120">
     </div>
     <button id="add-PMP">Add mapping</button>
     <button id="delete-PMP">Delete mapping</button>
@@ -53,6 +54,7 @@
     <div>
       Internal Port <input type="text" id="internal-port-PCP" value="50001">
       External Port <input type="text" id="external-port-PCP" value="50001">
+      Lifetime <input type="text" id="lifetime-PCP" value="120">
     </div>
     <button id="add-PCP">Add mapping</button>
     <button id="delete-PCP">Delete mapping</button>
@@ -64,6 +66,7 @@
     <div>
       Internal Port <input type="text" id="internal-port-UPnP" value="50002">
       External Port <input type="text" id="external-port-UPnP" value="50002">
+      Lifetime <input type="text" id="lifetime-UPnP" value="120">
     </div>
     <button id="add-UPnP">Add mapping</button>
     <button id="delete-UPnP">Delete mapping</button>
@@ -73,11 +76,12 @@
 
     <h3>All protocols</h3>
     <div>
-      Internal Port <input type="text" id="internal-port-any" value="50003">
-      External Port <input type="text" id="external-port-any" value="50003">
+      Internal Port <input type="text" id="internal-port-all" value="50003">
+      External Port <input type="text" id="external-port-all" value="50003">
+      Lifetime <input type="text" id="lifetime-all" value="120">
     </div>
-    <button id="add-any">Add mapping</button>
-    <button id="delete-any">Delete mapping</button>
-    <div id="result-any"></div>
+    <button id="add-all">Add mapping</button>
+    <button id="delete-all">Delete mapping</button>
+    <div id="result-all"></div>
   </body>
 </html>

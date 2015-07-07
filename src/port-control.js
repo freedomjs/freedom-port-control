@@ -16,27 +16,25 @@ var routerIps = ['192.168.1.1', '192.168.2.1', '192.168.11.1',
   '10.0.1.1', '10.1.1.1', '10.0.0.13', '10.0.0.2', '10.0.0.138'];
 
 /**
-* A table that keeps track of information about active mappings
-* { externalPortNumber1: {
-*     intervalId: number,
-*     internalPort: number,
-*     protocol: string ("natPmp", "pcp", or "upnp")
-*   }, 
-*   externalPortNumber2: { ... },
-*   ...
-* }
-*/
-var activeMappings = {};
-
-
-/**
 * An object representing a port mapping returned by mapping methods
 * @typedef {Object} mappingObj
 * @property {string} internalIp
 * @property {number} internalPort
 * @property {string} externalIp Only provided by PCP, undefined for other protocols
 * @property {number} externalPort The actual external port of the mapping, -1 on failure
+* @property {number} lifetime The actual (response) lifetime of the mapping
+* @property {string} protocol The protocol used to make the mapping ('natPmp', 'pcp', 'upnp')
+* @property {number} timeoutId The timeout ID if the mapping is refreshed
 */
+
+/**
+* A table that keeps track of information about active mappings
+* { externalPortNumber1: mappingObj1, 
+*   externalPortNumber2: mappingObj2,
+*   ...
+* }
+*/
+var activeMappings = {};
 
 /**
 * Add a port mapping through the NAT with any protocol that works
@@ -44,19 +42,19 @@ var activeMappings = {};
 * @method addMapping
 * @param {string} intPort The internal port on the computer to map to
 * @param {string} extPort The external port on the router to map to
-* @param {boolean} refresh (Optional) Whether to setInterval to refresh the mapping,
-* automatically set to true by the addMapping*() methods if undefined
+* @param {number} lifetime Seconds that the mapping will last
+*                          0 is infinity; handled differently per protocol
 * @return {Promise<mappingObj>} A promise for the port mapping object (externalPort === -1 on failure)
 **/
-PortControl.prototype.addMapping = function (intPort, extPort, refresh) {
+PortControl.prototype.addMapping = function (intPort, extPort, lifetime) {
   var _this = this;
 
-  return _this.addMappingPmp(intPort, extPort, refresh).then(function (mappingObj) {
+  return _this.addMappingPmp(intPort, extPort, lifetime).then(function (mappingObj) {
     if (mappingObj.externalPort !== -1) { return mappingObj; }
-    else { return _this.addMappingPcp(intPort, extPort, refresh); }
+    else { return _this.addMappingPcp(intPort, extPort, lifetime); }
   }).then(function (mappingObj) {
     if (mappingObj.externalPort !== -1) { return mappingObj; }
-    else { return _this.addMappingUpnp(intPort, extPort, refresh); }
+    else { return _this.addMappingUpnp(intPort, extPort, lifetime); }
   });
 };
 
@@ -94,9 +92,9 @@ PortControl.prototype.deleteMapping = function (extPort) {
 * @return {Promise<{"natPmp": boolean, "pcp": boolean, "upnp": boolean}>}
 */
 PortControl.prototype.probeProtocolSupport = function () {
-  var protocolSupport = {};
   return Promise.all([this.probePmpSupport(), this.probePcpSupport(),
     this.probeUpnpSupport()]).then(function (support) {
+      var protocolSupport = {};
       protocolSupport.natPmp = support[0];
       protocolSupport.pcp = support[1];
       protocolSupport.upnp = support[2];
@@ -111,7 +109,7 @@ PortControl.prototype.probeProtocolSupport = function () {
 * @return {Promise<boolean>} A promise for a boolean
 */
 PortControl.prototype.probePmpSupport = function () {
-  return this.addMappingPmp(55555, 55555, false).
+  return this.addMappingPmp(55555, 55555, 120).
       then(function (mappingObj) {
         if (mappingObj.externalPort !== -1) { return true; }
         return false;
@@ -125,12 +123,14 @@ PortControl.prototype.probePmpSupport = function () {
 * @method addMappingPmp
 * @param {string} intPort The internal port on the computer to map to
 * @param {string} extPort The external port on the router to map to
-* @param {boolean} [refresh = true] Whether to setInterval to refresh the mapping
+* @param {number} lifetime Seconds that the mapping will last
+*                          0 is infinity, i.e. a refresh every 24 hours
 * @return {Promise<mappingObj>} A promise for the port mapping object (externalPort === -1 on failure)
 */
-PortControl.prototype.addMappingPmp = function (intPort, extPort, refresh) {
+PortControl.prototype.addMappingPmp = function (intPort, extPort, lifetime) {
   var _this = this;
   var mappingObj = {};
+  mappingObj.protocol = "natPmp";
   mappingObj.internalPort = intPort;
   mappingObj.externalPort = -1;
 
@@ -139,17 +139,19 @@ PortControl.prototype.addMappingPmp = function (intPort, extPort, refresh) {
     // sendPmpRequest() calls on all the router IPs. An error result
     // is caught and re-passed as null.
     return Promise.all(routerIps.map(function (routerIp) {
-        return _this.sendPmpRequest(routerIp, intPort, extPort, 7200).
+        return _this.sendPmpRequest(routerIp, intPort, extPort, lifetime).
             then(function (pmpResponse) { return pmpResponse; }).
             catch(function (err) { return null; });
     })).then(function (responses) {
       // Check if any of the responses are successful (not null)
-      // and parse the external port and router IP in the response
+      // and parse the external port, router IP, and lifetime in the response
       for (var i = 0; i < responses.length; i++) {
         if (responses[i] !== null) {
           var responseView = new DataView(responses[i].data);
           var extPort = responseView.getUint16(10);
+          var lifetime = responseView.getUint32(12);
           mappingObj.externalPort = extPort;
+          mappingObj.lifetime = lifetime;
           return responses[i].address;  // Router's internal IP
         }
       }
@@ -170,23 +172,19 @@ PortControl.prototype.addMappingPmp = function (intPort, extPort, refresh) {
     });
   }
 
-  // Set refresh to be true by default, if it's undefined
-  refresh = (refresh === undefined) ? true : refresh;
-
   return _addMappingPmp().then(function (mappingObj) {
-    // If the mapping is successful and we want to refresh, setInterval a refresh
-    var intervalId;
-    if (mappingObj.externalPort !== -1 && refresh) {
-      intervalId = setInterval(_this.addMappingPmp.bind(_this, intPort,
-        mappingObj.externalPort, false), 120 * 1000);
+    // If the actual lifetime is less than the requested lifetime,
+    // setTimeout to refresh the mapping when it expires
+    var timeoutId;
+    var dTimeout = lifetime - mappingObj.lifetime;
+    if (mappingObj.externalPort !== -1 && dTimeout > 0) {
+      timeoutId = setTimeout(_this.addMappingPmp.bind(_this, intPort,
+        mappingObj.externalPort, dTimeout), mappingObj.lifetime * 1000);
+      mappingObj.timeoutId = timeoutId;
     }
     // If the mapping is successful, add it to activeMappings
     if (mappingObj.externalPort !== -1) {
-      activeMappings[mappingObj.externalPort] = {
-        intervalId: intervalId,
-        internalPort: intPort,
-        protocol: 'natPmp'
-      };
+      activeMappings[mappingObj.externalPort] = mappingObj;
     }
     return mappingObj;
   });
@@ -222,7 +220,7 @@ PortControl.prototype.deleteMappingPmp = function (extPort) {
         var responseView = new DataView(responses[i].data);
         var successCode = responseView.getUint16(2);
         if (successCode === 0) {
-          clearInterval(activeMappings[extPort].intervalId);
+          clearTimeout(activeMappings[extPort].timeoutId);
           delete activeMappings[extPort];
           return true;
         }
@@ -241,7 +239,7 @@ PortControl.prototype.deleteMappingPmp = function (extPort) {
 * @param {string} routerIp The IP address that the router can be reached at
 * @param {string} intPort The internal port on the computer to map to
 * @param {string} extPort The external port on the router to map to
-* @param {string} lifetime The requested lifetime of the mapping
+* @param {number} lifetime Seconds that the mapping will last
 * @return {Promise<{"resultCode": number, "address": string, "port": number, "data": ArrayBuffer}>}
 *         A promise that fulfills with the full NAT-PMP response object, or rejects on timeout
 */
@@ -298,7 +296,7 @@ PortControl.prototype.sendPmpRequest = function (routerIp, intPort, extPort, lif
 * @return {Promise<boolean>} A promise for a boolean
 */
 PortControl.prototype.probePcpSupport = function () {
-  return this.addMappingPcp(55556, 55556, false).
+  return this.addMappingPcp(55556, 55556, 120).
       then(function (mappingObj) {
         if (mappingObj.externalPort !== -1) { return true; }
         return false;
@@ -312,12 +310,15 @@ PortControl.prototype.probePcpSupport = function () {
 * @method addMappingPcp
 * @param {string} intPort The internal port on the computer to map to
 * @param {string} extPort The external port on the router to map to
-* @param {boolean} [refresh = true] Whether to setInterval to refresh the mapping
-* @return {Promise<mappingObj>} A promise for the port mapping object (externalPort === -1 on failure)
+* @param {number} lifetime Seconds that the mapping will last
+*                          0 is infinity, i.e. a refresh every 24 hours
+* @return {Promise<mappingObj>} A promise for the port mapping object 
+*                               mappingObj.externalPort is -1 on failure
 */
-PortControl.prototype.addMappingPcp = function (intPort, extPort, refresh) {
+PortControl.prototype.addMappingPcp = function (intPort, extPort, lifetime) {
   var _this = this;
   var mappingObj = {};
+  mappingObj.protocol = "pcp";
   mappingObj.internalPort = intPort;
   mappingObj.externalPort = -1;
 
@@ -330,7 +331,7 @@ PortControl.prototype.addMappingPcp = function (intPort, extPort, refresh) {
         // Choose a privateIp based on the currently selected routerIp,
         // using a longest prefix match, and send a PCP request with that IP
         var privateIp = _this.longestPrefixMatch(privateIps, routerIp);
-        return _this.sendPcpRequest(routerIp, privateIp, intPort, extPort, 7200).
+        return _this.sendPcpRequest(routerIp, privateIp, intPort, extPort, lifetime).
             then(function (pcpResponse) {
               return {"pcpResponse": pcpResponse, "privateIp": privateIp};
             }).
@@ -347,33 +348,31 @@ PortControl.prototype.addMappingPcp = function (intPort, extPort, refresh) {
           var ipOctets = [responseView.getUint8(56), responseView.getUint8(57),
                           responseView.getUint8(58), responseView.getUint8(59)];
           var extIp = ipOctets.join('.');
+          var lifetime = responseView.getUint32(4);
 
           mappingObj.externalPort = extPort;
           mappingObj.externalIp = extIp;
           mappingObj.internalIp = responses[i].privateIp;
+          mappingObj.lifetime = lifetime;
         }
       }
       return mappingObj;
     });
   };
 
-  // Set refresh to be true by default, if it's undefined
-  refresh = (refresh === undefined) ? true : refresh;
-
   return _addMappingPcp().then(function (mappingObj) {
-    // If the mapping is successful and we want to refresh, setInterval a refresh
-    var intervalId;
-    if (mappingObj.externalPort !== -1 && refresh) {
-      intervalId = setInterval(_this.addMappingPcp.bind(_this, intPort,
-        mappingObj.externalPort, false), 120 * 1000);
+    // If the actual lifetime is less than the requested lifetime,
+    // setTimeout to refresh the mapping when it expires
+    var timeoutId;
+    var dTimeout = lifetime - mappingObj.lifetime;
+    if (mappingObj.externalPort !== -1 && dTimeout > 0) {
+      timeoutId = setTimeout(_this.addMappingPcp.bind(_this, intPort,
+        mappingObj.externalPort, dTimeout), mappingObj.lifetime * 1000);
+      mappingObj.timeoutId = timeoutId;
     }
     // If the mapping is successful, add it to activeMappings
     if (mappingObj !== -1) {
-      activeMappings[mappingObj.externalPort] = {
-        intervalId: intervalId,
-        internalPort: intPort,
-        protocol: 'pcp'
-      };
+      activeMappings[mappingObj.externalPort] = mappingObj;
     }
     return mappingObj;
   });
@@ -412,7 +411,7 @@ PortControl.prototype.deleteMappingPcp = function (extPort) {
         var responseView = new DataView(responses[i]);
         var successCode = responseView.getUint8(3);
         if (successCode === 0) {
-          clearInterval(activeMappings[extPort].intervalId);
+          clearTimeout(activeMappings[extPort].timeoutId);
           delete activeMappings[extPort];
           return true;
         } 
@@ -432,8 +431,9 @@ PortControl.prototype.deleteMappingPcp = function (extPort) {
 * @param {string} privateIp The private IP address of the user's computer
 * @param {string} intPort The internal port on the computer to map to
 * @param {string} extPort The external port on the router to map to
-* @param {string} lifetime The requested lifetime of the mapping
-* @return {Promise<ArrayBuffer>} A promise that fulfills with the PCP response, or rejects on timeout
+* @param {number} lifetime Seconds that the mapping will last
+* @return {Promise<ArrayBuffer>} A promise that fulfills with the PCP response
+*                                or rejects on timeout
 */
 PortControl.prototype.sendPcpRequest = function (routerIp, privateIp, intPort, extPort, lifetime) {
   var socket;
@@ -511,7 +511,7 @@ PortControl.prototype.sendPcpRequest = function (routerIp, privateIp, intPort, e
 * @return {Promise<boolean>} A promise for a boolean
 */
 PortControl.prototype.probeUpnpSupport = function () {
-  return this.addMappingUpnp(55557, 55557, false).
+  return this.addMappingUpnp(55557, 55557, 120).
       then(function (mappingObj) {
         if (mappingObj.externalPort !== -1) { return true; }
         return false;
@@ -519,27 +519,31 @@ PortControl.prototype.probeUpnpSupport = function () {
 };
 
 /**
-* Makes a port mapping in the NAT with UPnP AddPortMapping,
-* and automatically refresh the mapping every two minutes
+* Makes a port mapping in the NAT with UPnP AddPortMapping
 * @public
 * @method addMappingUpnp
 * @param {string} intPort The internal port on the computer to map to
 * @param {string} extPort The external port on the router to map to
-* @param {boolean} [refresh = true] Whether to setInterval to refresh the mapping
-* @return {Promise<mappingObj>} A promise for the port mapping object (externalPort is -1 on failure)
+* @param {number} lifetime Seconds that the mapping will last
+*                          0 is infinity; a static AddPortMapping request
+* @return {Promise<mappingObj>} A promise for the port mapping object 
+*                               mappingObj.externalPort is -1 on failure
 */
-PortControl.prototype.addMappingUpnp = function (intPort, extPort, refresh) {
+PortControl.prototype.addMappingUpnp = function (intPort, extPort, lifetime) {
   var _this = this;
   var mappingObj = {};
+  mappingObj.protocol = "upnp";
   mappingObj.internalPort = intPort;
   mappingObj.externalPort = -1;
 
   var _addMappingUpnp = function () {
-    return _this.sendUpnpRequest(intPort, extPort).then(function (intIp) {
+    return _this.sendUpnpRequest(intPort, extPort, lifetime).then(function (intIp) {
       // Success response to AddPortMapping (the internal IP of the mapping)
-      // The requested external port will always be mapped on success, errors otherwise
+      // The requested external port will always be mapped on success, 
+      // and the lifetime will always be the requested lifetime; errors otherwise
       mappingObj.externalPort = extPort;
       mappingObj.internalIp = intIp;
+      mappingObj.lifetime = lifetime;
       return mappingObj;
     }).catch(function (err) {
       // Either time out, runtime error, or error response to AddPortMapping
@@ -548,23 +552,13 @@ PortControl.prototype.addMappingUpnp = function (intPort, extPort, refresh) {
     });
   };
 
-  // Set refresh to be true by default, if it's undefined
-  refresh = (refresh === undefined) ? true : refresh;
-
   return _addMappingUpnp().then(function (mappingObj) {
-    // If the mapping is successful and we want to refresh, setInterval a refresh
-    var intervalId;
-    if (mappingObj.externalPort !== -1 && refresh) {
-      intervalId = setInterval(_this.addMappingUpnp.bind(_this, intPort,
-        mappingObj.externalPort, false), 120 * 1000);
-    }
+    // Note: We never refresh for UPnP as the requested lifetime is always
+    // the actual lifetime of the mapping, and 0 is infinity per the protocol
+
     // If the mapping is successful, add it to activeMappings
     if (mappingObj !== -1) {
-      activeMappings[mappingObj.externalPort] = {
-        intervalId: intervalId,
-        internalPort: intPort,
-        protocol: 'upnp'
-      };
+      activeMappings[mappingObj.externalPort] = mappingObj;
     }
     return mappingObj;
   });
@@ -597,7 +591,6 @@ PortControl.prototype.deleteMappingUpnp = function (extPort) {
         break;
       }
     }
-
     // Send the DeletePortMapping request
     if (controlUrl !== undefined) {
       return _this.sendDeletePortMapping(controlUrl, extPort);
@@ -605,7 +598,6 @@ PortControl.prototype.deleteMappingUpnp = function (extPort) {
       R(new Error("No UPnP devices have a control URL"));
     }
   }).then(function (result) {
-    clearInterval(activeMappings[extPort].intervalId);
     delete activeMappings[extPort];
     return true;
   }).catch(function (err) {
@@ -619,10 +611,11 @@ PortControl.prototype.deleteMappingUpnp = function (extPort) {
 * @method sendUpnpRequest
 * @param {string} intPort The internal port on the computer to map to
 * @param {string} extPort The external port on the router to map to
+* @param {number} lifetime Seconds that the mapping will last
 * @return {Promise<string>} A promise that fulfills with the internal IP of the mapping,
 *                           or rejects on timeout.
 */
-PortControl.prototype.sendUpnpRequest = function (intPort, extPort) {
+PortControl.prototype.sendUpnpRequest = function (intPort, extPort, lifetime) {
   var _this = this;
   var internalIp;
 
@@ -655,7 +648,8 @@ PortControl.prototype.sendUpnpRequest = function (intPort, extPort) {
         return _this.getPrivateIps().then(function(privateIps) {
           internalIp = _this.longestPrefixMatch(privateIps, routerIp);
 
-          return _this.sendAddPortMapping(controlUrl, internalIp, intPort, extPort);
+          return _this.sendAddPortMapping(controlUrl, internalIp, intPort, 
+                                          extPort, lifetime);
         });
       } else {
         R(new Error("No UPnP devices have a control URL"));
@@ -774,11 +768,11 @@ PortControl.prototype.fetchControlUrl = function (ssdpResponse) {
  * @param {string} privateIp The private IP address of the user's computer
  * @param {string} intPort The internal port on the computer to map to
  * @param {string} extPort The external port on the router to map to
+ * @param {number} lifetime Seconds that the mapping will last
  * @return {string} The response string to the AddPortMapping request
  */
-PortControl.prototype.sendAddPortMapping = function (controlUrl, privateIp, intPort, extPort) {
+PortControl.prototype.sendAddPortMapping = function (controlUrl, privateIp, intPort, extPort, lifetime) {
   var _sendAddPortMapping = new Promise(function (F, R) {
-    var leaseDuration = 7200;  // Note: Some NATs don't support a nonzero mapping lifetime
 
     // Create the AddPortMapping SOAP request string
     var apm = '<?xml version="1.0"?>' +
@@ -791,7 +785,7 @@ PortControl.prototype.sendAddPortMapping = function (controlUrl, privateIp, intP
                      '<NewInternalClient>' + privateIp + '</NewInternalClient>' +
                      '<NewEnabled>1</NewEnabled>' +
                      '<NewPortMappingDescription>uProxy UPnP</NewPortMappingDescription>' +
-                     '<NewLeaseDuration>' + leaseDuration + '</NewLeaseDuration>' +
+                     '<NewLeaseDuration>' + lifetime + '</NewLeaseDuration>' +
                   '</u:AddPortMapping>' +
                 '</s:Body>' +
               '</s:Envelope>';

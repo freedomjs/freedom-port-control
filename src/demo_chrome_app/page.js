@@ -22,7 +22,8 @@ function start(instance) {
   document.getElementById('add-PMP').addEventListener('click', function () {
     var intPort = document.getElementById('internal-port-PMP').value;
     var extPort = document.getElementById('external-port-PMP').value;
-    portControl.addMappingPmp(intPort, extPort, false).then(function (mappingObj) {
+    var lifetime = document.getElementById('lifetime-PMP').value;
+    portControl.addMappingPmp(intPort, extPort, lifetime).then(function (mappingObj) {
       if (mappingObj.externalPort !== -1) {
         document.getElementById('result-PMP').innerText =
             "NAT-PMP mapping object: " + JSON.stringify(mappingObj, null, 2);
@@ -46,7 +47,8 @@ function start(instance) {
   document.getElementById('add-PCP').addEventListener('click', function () {
     var intPort = document.getElementById('internal-port-PCP').value;
     var extPort = document.getElementById('external-port-PCP').value;
-    portControl.addMappingPcp(intPort, extPort, false).then(function (mappingObj) {
+    var lifetime = document.getElementById('lifetime-PCP').value;
+    portControl.addMappingPcp(intPort, extPort, lifetime).then(function (mappingObj) {
       if (mappingObj.externalPort !== -1) {
         document.getElementById('result-PCP').innerText =
             "PCP mapping object: " + JSON.stringify(mappingObj, null, 2);
@@ -70,7 +72,8 @@ function start(instance) {
   document.getElementById('add-UPnP').addEventListener('click', function () {
     var intPort = document.getElementById('internal-port-UPnP').value;
     var extPort = document.getElementById('external-port-UPnP').value;
-    portControl.addMappingUpnp(intPort, extPort, false).then(function (mappingObj) {
+    var lifetime = document.getElementById('lifetime-UPnP').value;
+    portControl.addMappingUpnp(intPort, extPort, lifetime).then(function (mappingObj) {
       if (mappingObj.externalPort !== -1) {
         document.getElementById('result-UPnP').innerText =
             "UPnP mapping object: " + JSON.stringify(mappingObj, null, 2);
@@ -91,26 +94,27 @@ function start(instance) {
     });
   });
 
-  document.getElementById('add-any').addEventListener('click', function () {
-    var intPort = document.getElementById('internal-port-any').value;
-    var extPort = document.getElementById('external-port-any').value;
-    portControl.addMapping(intPort, extPort, false).then(function (mappingObj) {
+  document.getElementById('add-all').addEventListener('click', function () {
+    var intPort = document.getElementById('internal-port-all').value;
+    var extPort = document.getElementById('external-port-all').value;
+    var lifetime = document.getElementById('lifetime-all').value;
+    portControl.addMapping(intPort, extPort, lifetime).then(function (mappingObj) {
       if (mappingObj.externalPort !== -1) {
-        document.getElementById('result-any').innerText =
+        document.getElementById('result-all').innerText =
             JSON.stringify(mappingObj, null, 2);
       } else {
-        document.getElementById('result-any').innerText = "All protocols failed.";
+        document.getElementById('result-all').innerText = "All protocols failed.";
       }
     });
   });
 
-  document.getElementById('delete-any').addEventListener('click', function () {
-    var extPort = document.getElementById('external-port-any').value;
+  document.getElementById('delete-all').addEventListener('click', function () {
+    var extPort = document.getElementById('external-port-all').value;
     portControl.deleteMapping(extPort).then(function (deleteResult) {
       if (deleteResult) {
-        document.getElementById('result-any').innerText = "Mapping deleted.";
+        document.getElementById('result-all').innerText = "Mapping deleted.";
       } else {
-        document.getElementById('result-any').innerText = "Mapping could not be deleted.";
+        document.getElementById('result-all').innerText = "Mapping could not be deleted.";
       }
     });
   });
