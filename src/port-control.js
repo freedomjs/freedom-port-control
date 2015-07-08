@@ -445,10 +445,12 @@ PortControl.prototype.deleteMappingPcp = function (extPort) {
     // Return true if any of the responses are successful (not null)
     for (var i = 0; i < responses.length; i++) {
       if (responses[i] !== null) {
-        // Check that the success code of the response is 0
+        // Check that the success code of the response is 0 or 8
+        // Success code 8 (NO_RESOURCES) may denote that the mapping does not
+        // exist on the router, so we accept it as well
         var responseView = new DataView(responses[i]);
         var successCode = responseView.getUint8(3);
-        if (successCode === 0) {
+        if (successCode === 0 || successCode === 8) {
           clearTimeout(activeMappings[extPort].timeoutId);
           delete activeMappings[extPort];
           return true;
