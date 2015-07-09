@@ -33,6 +33,10 @@ module.exports = function(grunt) {
         filter: 'isFile',
         expand: true,
         onlyIf: 'modified'
+      },
+      dist: {
+        src: ['build/port-control.js'],
+        dest: 'dist/port-control.js',
       }
     },
 
@@ -43,7 +47,7 @@ module.exports = function(grunt) {
       }
     },
 
-    clean: ['build/']
+    clean: ['build/', 'dist/']
   });
 
   grunt.loadNpmTasks('grunt-browserify');
