@@ -35,8 +35,11 @@ module.exports = function(grunt) {
         onlyIf: 'modified'
       },
       dist: {
-        src: ['build/port-control.js'],
-        dest: 'dist/port-control.js',
+        src: ['build/port-control.js', 'src/port-control.json'],
+        dest: 'dist/',
+        flatten: true,
+        filter: 'isFile',
+        expand: true,
       }
     },
 
