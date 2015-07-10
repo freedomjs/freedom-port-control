@@ -173,6 +173,8 @@ PortControl.prototype.addMappingPmp = function (intPort, extPort, lifetime) {
       } else {
         return mapping;
       }
+    }).catch(function (err) {
+      return mapping;
     });
   }
 
@@ -380,6 +382,8 @@ PortControl.prototype.addMappingPcp = function (intPort, extPort, lifetime) {
                            responseView.getUint32(32)];
         }
       }
+      return mapping;
+    }).catch(function (err) {
       return mapping;
     });
   };
