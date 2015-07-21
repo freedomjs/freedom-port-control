@@ -119,6 +119,7 @@ var createArrayBuffer = function (bytes, matrix) {
     if (row[0] === 8) { view.setInt8(row[1], row[2]); } 
     else if (row[0] === 16) { view.setInt16(row[1], row[2], false); } 
     else if (row[0] === 32) { view.setInt32(row[1], row[2], false); }
+    else { console.error("Invalid parameters to createArrayBuffer"); }
   }
   return buffer;
 };
