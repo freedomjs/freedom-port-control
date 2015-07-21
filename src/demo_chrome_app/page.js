@@ -13,6 +13,15 @@ function start(instance) {
     });
   });
 
+  document.getElementById('test-router-cache').addEventListener('click', function () {
+    portControl.getRouterIpCache().then(function (routerIps) {
+      document.getElementById('result-router-cache').innerText = "Your cached router IPs are: " +
+        JSON.stringify(routerIps, null, 2);
+    }).catch(function (err) {
+      document.getElementById('result-router-cache').innerText = err.message;
+    });
+  });
+
   document.getElementById('test-protocols').addEventListener('click', function () {
     portControl.probeProtocolSupport().then(function (protocolSupport) {
       document.getElementById('result-protocols').innerText =
