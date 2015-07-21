@@ -252,9 +252,6 @@ var sendPcpRequest = function (routerIp, privateIp, intPort, extPort, lifetime,
       var pcpBuffer = utils.createArrayBuffer(60, [
         [32, 0, 0x2010000],
         [32, 4, lifetime],
-        [32, 8, 0],
-        [32, 12, 0],
-        [16, 16, 0],
         [16, 18, 0xffff],
         [8, 20, ipOctets[0]],
         [8, 21, ipOctets[1]],
@@ -264,15 +261,9 @@ var sendPcpRequest = function (routerIp, privateIp, intPort, extPort, lifetime,
         [32, 28, nonce[1]],
         [32, 32, nonce[2]],
         [8, 36, 17],
-        [16, 37, 0],
-        [8, 39, 0],
         [16, 40, intPort],
         [16, 42, extPort],
-        [32, 44, 0],
-        [32, 48, 0],
-        [16, 52, 0],
         [16, 54, 0xffff],
-        [32, 56, 0]
       ]);
       socket.sendTo(pcpBuffer, routerIp, 5351);
     });

@@ -230,9 +230,7 @@ var sendPmpRequest = function (routerIp, intPort, extPort, lifetime) {
     socket.bind('0.0.0.0', 0).then(function (result) {
       // NAT-PMP packet structure: https://tools.ietf.org/html/rfc6886#section-3.3
       var pmpBuffer = utils.createArrayBuffer(12, [
-        [8, 0, 0],
         [8, 1, 1],
-        [16, 2, 0],
         [16, 4, intPort],
         [16, 6, extPort],
         [32, 8, lifetime]
