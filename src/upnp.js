@@ -3,20 +3,21 @@ var utils = require('./utils');
 /**
 * Probe if UPnP AddPortMapping is supported by the router
 * @public
-* @method probeUpnpSupport
+* @method probeSupport
 * @param {object} activeMappings Table of active Mappings
+* @param {Array<string>} routerIpCache Router IPs that have previously worked
 * @return {Promise<boolean>} A promise for a boolean
 */
-var probeUpnpSupport = function (activeMappings) {
-  return addMappingUpnp(utils.UPNP_PROBE_PORT, utils.UPNP_PROBE_PORT, 120,
-                             activeMappings).
+var probeSupport = function (activeMappings) {
+  return addMapping(utils.UPNP_PROBE_PORT, utils.UPNP_PROBE_PORT, 120,
+                    activeMappings).
       then(function (mapping) { return mapping.externalPort !== -1; });
 };
 
 /**
 * Makes a port mapping in the NAT with UPnP AddPortMapping
 * @public
-* @method addMappingUpnp
+* @method addMapping
 * @param {number} intPort The internal port on the computer to map to
 * @param {number} extPort The external port on the router to map to
 * @param {number} lifetime Seconds that the mapping will last
@@ -25,14 +26,14 @@ var probeUpnpSupport = function (activeMappings) {
 * @return {Promise<Mapping>} A promise for the port mapping object 
 *                               mapping.externalPort is -1 on failure
 */
-var addMappingUpnp = function (intPort, extPort, lifetime, activeMappings) {
+var addMapping = function (intPort, extPort, lifetime, activeMappings) {
   var mapping = new utils.Mapping();
   mapping.internalPort = intPort;
   mapping.protocol = 'upnp';
 
-  // Send a AddPortMapping request and parse the response
-  function _sendUpnpRequest() {
-    return sendUpnpRequest(intPort, extPort, lifetime).then(function (intIp) {
+  // Does the UPnP flow to send a AddPortMapping request and parse the response
+  function _handleUpnpFlow() {
+    return doUpnpFlow(intPort, extPort, lifetime).then(function (intIp) {
       // Success response to AddPortMapping (the internal IP of the mapping)
       // The requested external port will always be mapped on success, 
       // and the lifetime will always be the requested lifetime; errors otherwise
@@ -47,36 +48,39 @@ var addMappingUpnp = function (intPort, extPort, lifetime, activeMappings) {
     });
   }
 
-  // After receiving an AddPortMapping response, set a timeout to delete the 
-  // mapping, and add it to activeMappings
-  return _sendUpnpRequest().then(function (mapping) {
-    // Note: We never refresh for UPnP as the requested lifetime is always
-    // the actual lifetime of the mapping, and 0 is infinity per the protocol
-
+  // Save the Mapping object in activeMappings on success, and set a timeout 
+  // to delete the mapping on expiration
+  // Note: We never refresh for UPnP as the requested lifetime is always
+  // the actual lifetime of the mapping, and 0 is infinity per the protocol
+  function _saveMapping(mapping) {
     // Delete the entry from activeMapping at expiration
     if (mapping.externalPort !== -1 && lifetime !== 0) {
-      setTimeout(function () {
-        delete activeMappings[mapping.externalPort];
-      }, mapping.lifetime*1000);
+      setTimeout(function () { delete activeMappings[mapping.externalPort]; },
+                 mapping.lifetime*1000);
     }
 
-    // If the mapping operation is successful, add it to activeMappings
+    // If mapping succeeded, attach a deleter function and add to activeMappings
     if (mapping.externalPort !== -1) {
+      mapping.deleter = deleteMapping.bind({}, mapping.externalPort, activeMappings);
       activeMappings[mapping.externalPort] = mapping;
     }
     return mapping;
-  });
+  }
+
+  // After receiving an AddPortMapping response, set a timeout to delete the 
+  // mapping, and add it to activeMappings
+  return _handleUpnpFlow().then(_saveMapping);
 };
 
 /**
 * Deletes a port mapping in the NAT with UPnP DeletePortMapping
 * @public
-* @method deleteMappingUpnp
+* @method deleteMapping
 * @param {number} extPort The external port of the mapping to delete
 * @param {object} activeMappings Table of active Mappings
 * @return {Promise<boolean>} True on success, false on failure
 */
-var deleteMappingUpnp = function (extPort, activeMappings) {
+var deleteMapping = function (extPort, activeMappings) {
   // Does the UPnP flow for deleting a mapping (SSDP, POST to control URL)
   // and if successful, delete its Mapping from activeMappings
   return sendSsdpRequest().then(function (ssdpResponses) {
@@ -111,16 +115,17 @@ var deleteMappingUpnp = function (extPort, activeMappings) {
 };
 
 /**
-* Runs the UPnP procedure for mapping a port
+* Runs the UPnP procedure for mapping a port 
+* (1. SSDP, 2. GET location URL, 3. POST to control URL)
 * @private
-* @method sendUpnpRequest
+* @method doUpnpFlow
 * @param {number} intPort The internal port on the computer to map to
 * @param {number} extPort The external port on the router to map to
 * @param {number} lifetime Seconds that the mapping will last
 * @return {Promise<string>} A promise that fulfills with the internal IP of the 
 *                           mapping, or rejects on timeout.
 */
-var sendUpnpRequest = function (intPort, extPort, lifetime) {
+var doUpnpFlow = function (intPort, extPort, lifetime) {
   var internalIp;
 
   // Does the UPnP flow for adding a mapping (SSDP, POST to control URL)
@@ -136,8 +141,7 @@ var sendUpnpRequest = function (intPort, extPort, lifetime) {
       }));
     }).then(function (controlUrls) {
       // Find the first control URL that we received; use it for AddPortMapping
-      var routerIp;
-      var controlUrl;
+      var routerIp, controlUrl;
       for (var i = 0; i < controlUrls.length; i++) {
         controlUrl = controlUrls[i];
         if (controlUrl !== null) {
@@ -381,7 +385,7 @@ var sendDeletePortMapping = function (controlUrl, extPort) {
 };
 
 module.exports = {
-  probeUpnpSupport: probeUpnpSupport,
-  addMappingUpnp: addMappingUpnp,
-  deleteMappingUpnp: deleteMappingUpnp
+  probeSupport: probeSupport,
+  addMapping: addMapping,
+  deleteMapping: deleteMapping
 };

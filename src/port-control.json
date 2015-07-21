@@ -103,6 +103,12 @@
         "ret": "object"
       },
 
+      "getRouterIpCache": {
+        "type": "method",
+        "value": [],
+        "ret": ["array", "string"]
+      },
+
       "getPrivateIps": {
         "type": "method",
         "value": [],

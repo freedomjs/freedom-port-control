@@ -31,6 +31,7 @@ var UPNP_PROBE_PORT = 55557;
 * @property {string} protocol The protocol used to make the mapping ('natPmp', 'pcp', 'upnp')
 * @property {number} timeoutId The timeout ID if the mapping is refreshed
 * @property {array} nonce Only for PCP; the nonce field for deletion
+* @property {function} deleter Deletes the mapping from activeMappings and router
 */
 var Mapping = function () {
    this.internalIp = undefined;
@@ -41,6 +42,7 @@ var Mapping = function () {
    this.protocol = undefined;
    this.timeoutId = undefined;
    this.nonce = undefined;
+   this.deleter = undefined;
 };
 
 /**
@@ -83,12 +85,28 @@ var getPrivateIps = function () {
   });
 };
 
+/**
+* Filters routerIps for only those that match any of the user's IPs in privateIps
+* i.e. The longest prefix matches of the router IPs with each user IP* @public
+* @method filterRouterIps 
+* @param  {Array<string>} privateIps Private IPs to match router IPs to 
+* @return {Array<string>} Router IPs that matched (one per private IP)
+*/
+var filterRouterIps = function (privateIps) {
+  routerIps = [];
+  privateIps.forEach(function (privateIp) {
+    routerIps.push(longestPrefixMatch(ROUTER_IPS, privateIp));
+  });
+  return routerIps;
+};
 
 /**
  * Creates an ArrayBuffer with a compact matrix notation, i.e.
  * [[bits, byteOffset, value], 
  *  [8, 0, 1], //=> DataView.setInt8(0, 1)
  *  ... ]
+ * @public
+ * @method createArrayBuffer 
  * @param  {number} bytes Size of the ArrayBuffer in bytes
  * @param  {Array<Array<number>>} matrix Matrix of values for the ArrayBuffer
  * @return {ArrayBuffer} An ArrayBuffer constructed from matrix
@@ -108,7 +126,7 @@ var createArrayBuffer = function (bytes, matrix) {
 /**
 * Return a promise that rejects in a given time with an Error message,
 * and can call a callback function before rejecting
-* @private
+* @public
 * @method countdownReject
 * @param {number} time Time in seconds
 * @param {number} msg Message to encapsulate in the rejected Error
@@ -125,23 +143,34 @@ var countdownReject = function (time, msg, callback) {
 };
 
 /**
-* Takes a list of IP addresses (a user's private IPs) and an IP address for a
-* router/subnet, and returns the IP that has the longest prefix match with the
-* router's IP
-* @private
+* Close the OS-level sockets and discard its Freedom object
+* @public
+* @method closeSocket
+* @param {freedom_UdpSocket.Socket} socket The socket object to close
+*/
+var closeSocket = function (socket) {
+  socket.destroy().then(function () {
+    freedom['core.udpsocket'].close(socket);
+  });
+};
+
+/**
+* Takes a list of IP addresses and an IP address, and returns the longest prefix
+* match in the IP list with the IP
+* @public
 * @method longestPrefixMatch
 * @param {Array} ipList List of IP addresses to find the longest prefix match in
-* @param {string} routerIp The router's IP address as a string
+* @param {string} matchIp The router's IP address as a string
 * @return {string} The IP from the given list with the longest prefix match
 */
-var longestPrefixMatch = function (ipList, routerIp) {
+var longestPrefixMatch = function (ipList, matchIp) {
   var prefixMatches = [];
-  routerIp = ipaddr.IPv4.parse(routerIp);
+  matchIp = ipaddr.IPv4.parse(matchIp);
   for (var i = 0; i < ipList.length; i++) {
     var ip = ipaddr.IPv4.parse(ipList[i]);
     // Use ipaddr.js to find the longest prefix length (mask length)
     for (var mask = 1; mask < 32; mask++) {
-      if (!ip.match(routerIp, mask)) {
+      if (!ip.match(matchIp, mask)) {
         prefixMatches.push(mask - 1);
         break;
       }
@@ -156,7 +185,7 @@ var longestPrefixMatch = function (ipList, routerIp) {
 
 /**
 * Return a random integer in a specified range
-* @private
+* @public
 * @method randInt
 * @param {number} min Lower bound for the random integer
 * @param {number} max Upper bound for the random integer
@@ -168,7 +197,7 @@ var randInt = function (min, max) {
 
 /**
 * Convert an ArrayBuffer to a UTF-8 string
-* @private
+* @public
 * @method arrayBufferToString
 * @param {ArrayBuffer} buffer ArrayBuffer to convert
 * @return {string} A string converted from the ArrayBuffer
@@ -184,7 +213,7 @@ var arrayBufferToString = function (buffer) {
 
 /**
 * Convert a UTF-8 string to an ArrayBuffer
-* @private
+* @public
 * @method stringToArrayBuffer
 * @param {string} s String to convert
 * @return {ArrayBuffer} An ArrayBuffer containing the string data
@@ -199,15 +228,34 @@ var stringToArrayBuffer = function (s) {
 };
 
 /**
-* Close the OS-level sockets and discard its Freedom object
-* @private
-* @method closeSocket
-* @param {freedom_UdpSocket.Socket} socket The socket object to close
-*/
-var closeSocket = function (socket) {
-  socket.destroy().then(function () {
-    freedom['core.udpsocket'].close(socket);
+ * Returns the difference between two arrays
+ * @param  {Array} listA 
+ * @param  {Array} listB 
+ * @return {Array} The difference array
+ */
+var arrDiff = function (listA, listB) {
+  var diff = [];
+  listA.forEach(function (a) {
+    if (listB.indexOf(a) === -1) { diff.push(a); }
   });
+  return diff;
+};
+
+/**
+ * Adds two arrays, but doesn't include repeated elements
+ * @param  {Array} listA 
+ * @param  {Array} listB 
+ * @return {Array} The sum of the two arrays with no duplicates
+ */
+var arrAdd = function (listA, listB) {
+  var sum = [];
+  listA.forEach(function (a) {
+    if (sum.indexOf(a) === -1) { sum.push(a); }
+  });
+  listB.forEach(function (b) {
+    if (sum.indexOf(b) === -1) { sum.push(b); }
+  });
+  return sum;
 };
 
 module.exports = {
@@ -219,9 +267,12 @@ module.exports = {
   getPrivateIps: getPrivateIps,
   createArrayBuffer: createArrayBuffer,
   countdownReject: countdownReject,
+  closeSocket: closeSocket,
+  filterRouterIps: filterRouterIps,
   longestPrefixMatch: longestPrefixMatch,
   randInt: randInt,
   arrayBufferToString: arrayBufferToString,
   stringToArrayBuffer: stringToArrayBuffer,
-  closeSocket: closeSocket
+  arrAdd: arrAdd,
+  arrDiff: arrDiff
 };

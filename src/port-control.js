@@ -19,6 +19,12 @@ var PortControl = function (dispatchEvent) {
 PortControl.prototype.activeMappings = {};
 
 /**
+ * An array of previous router IPs that have worked; we try these first when 
+ * sending NAT-PMP and PCP requests
+ */
+PortControl.prototype.routerIpCache = [];
+
+/**
 * Add a port mapping through the NAT with any protocol that works
 * @public
 * @method addMapping
@@ -55,16 +61,8 @@ PortControl.prototype.deleteMapping = function (extPort) {
   var _this = this;
 
   return new Promise(function (F, R) {
-    // Get the protocol that this port was mapped with; may error
-    var protocol = _this.activeMappings[extPort].protocol;
-
-    if (protocol === 'natPmp') {
-      F(_this.deleteMappingPmp(extPort));
-    } else if (protocol === 'pcp') {
-      F(_this.deleteMappingPcp(extPort));
-    } else if (protocol === 'upnp') {
-      F(_this.deleteMappingUpnp(extPort));
-    }
+    var mapping = _this.activeMappings[extPort];  // This may error
+    F(mapping.deleter());
   }).catch(function (err) {
     return false;
   });
@@ -97,7 +95,7 @@ PortControl.prototype.probeProtocolSupport = function () {
 * @return {Promise<boolean>} A promise for a boolean
 */
 PortControl.prototype.probePmpSupport = function () {
-  return natPmp.probePmpSupport(this.activeMappings);
+  return natPmp.probeSupport(this.activeMappings, this.routerIpCache);
 };
 
 /**
@@ -113,7 +111,8 @@ PortControl.prototype.probePmpSupport = function () {
 *                            Mapping.externalPort === -1 on failure
 */
 PortControl.prototype.addMappingPmp = function (intPort, extPort, lifetime) {
-  return natPmp.addMappingPmp(intPort, extPort, lifetime, this.activeMappings);
+  return natPmp.addMapping(intPort, extPort, lifetime, this.activeMappings,
+                           this.routerIpCache);
 };
 
 /**
@@ -124,7 +123,7 @@ PortControl.prototype.addMappingPmp = function (intPort, extPort, lifetime) {
 * @return {Promise<boolean>} True on success, false on failure
 */
 PortControl.prototype.deleteMappingPmp = function (extPort) {
-  return natPmp.deleteMappingPmp(extPort, this.activeMappings);
+  return natPmp.deleteMapping(extPort, this.activeMappings, this.routerIpCache);
 };
 
 /**
@@ -134,7 +133,7 @@ PortControl.prototype.deleteMappingPmp = function (extPort) {
 * @return {Promise<boolean>} A promise for a boolean
 */
 PortControl.prototype.probePcpSupport = function () {
-  return pcp.probePcpSupport(this.activeMappings);
+  return pcp.probeSupport(this.activeMappings, this.routerIpCache);
 };
 
 /**
@@ -150,7 +149,8 @@ PortControl.prototype.probePcpSupport = function () {
 *                            mapping.externalPort is -1 on failure
 */
 PortControl.prototype.addMappingPcp = function (intPort, extPort, lifetime) {
-  return pcp.addMappingPcp(intPort, extPort, lifetime, this.activeMappings);
+  return pcp.addMapping(intPort, extPort, lifetime, this.activeMappings,
+                        this.routerIpCache);
 };
 
 /**
@@ -161,7 +161,7 @@ PortControl.prototype.addMappingPcp = function (intPort, extPort, lifetime) {
 * @return {Promise<boolean>} True on success, false on failure
 */
 PortControl.prototype.deleteMappingPcp = function (extPort) {
-  return pcp.deleteMappingPcp(extPort, this.activeMappings);
+  return pcp.deleteMapping(extPort, this.activeMappings, this.routerIpCache);
 };
 
 /**
@@ -171,7 +171,7 @@ PortControl.prototype.deleteMappingPcp = function (extPort) {
 * @return {Promise<boolean>} A promise for a boolean
 */
 PortControl.prototype.probeUpnpSupport = function () {
-  return upnp.probeUpnpSupport(this.activeMappings);
+  return upnp.probeSupport(this.activeMappings);
 };
 
 /**
@@ -186,7 +186,7 @@ PortControl.prototype.probeUpnpSupport = function () {
 *                               mapping.externalPort is -1 on failure
 */
 PortControl.prototype.addMappingUpnp = function (intPort, extPort, lifetime) {
-  return upnp.addMappingUpnp(intPort, extPort, lifetime, this.activeMappings);
+  return upnp.addMapping(intPort, extPort, lifetime, this.activeMappings);
 };
 
 /**
@@ -197,7 +197,7 @@ PortControl.prototype.addMappingUpnp = function (intPort, extPort, lifetime) {
 * @return {Promise<boolean>} True on success, false on failure
 */
 PortControl.prototype.deleteMappingUpnp = function (extPort) {
-  return upnp.deleteMappingUpnp(extPort, this.activeMappings);
+  return upnp.deleteMapping(extPort, this.activeMappings);
 };
 
 /**
@@ -211,11 +211,22 @@ PortControl.prototype.getActiveMappings = function () {
 };
 
 /**
+* Return the router IP cache
+* @public
+* @method getRouterIpCache
+* @return {Promise<Array<string>>} A promise that fulfills with routerIpCache,
+*                                  or rejects on timeout
+*/
+PortControl.prototype.getRouterIpCache = function () {
+  return Promise.resolve(this.routerIpCache);
+};
+
+/**
 * Return the private IP addresses of the computer
 * @public
 * @method getPrivateIps
-* @return {Promise<string>} A promise that fulfills with a list of IP address, 
-*                           or rejects on timeout
+* @return {Promise<Array<string>>} A promise that fulfills with a list of IPs,
+*                                  or rejects on timeout
 */
 PortControl.prototype.getPrivateIps = function () {
   return utils.getPrivateIps();
