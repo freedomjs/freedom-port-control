@@ -171,21 +171,21 @@ var sendSsdpRequest = function () {
   // Bind a socket and send the SSDP request
   socket.bind('0.0.0.0', 0).then(function (result) {
     // Construct and send a UPnP SSDP message
-    var ssdpStr = 'M-SEARCH* HTTP/1.1\r\n' +
+    var ssdpStr = 'M-SEARCH * HTTP/1.1\r\n' +
                   'HOST: 239.255.255.250:1900\r\n' +
-                  'MAN: ssdp:discover\r\n' +
-                  'MX: 10\r\n' +
-                  'ST: urn:schemas-upnp-org:device:InternetGatewayDevice:1';
+                  'MAN: "ssdp:discover"\r\n' +
+                  'MX: 3\r\n' +
+                  'ST: urn:schemas-upnp-org:device:InternetGatewayDevice:1\r\n\r\n';
     var ssdpBuffer = utils.stringToArrayBuffer(ssdpStr);
     socket.sendTo(ssdpBuffer, '239.255.255.250', 1900);
   });
 
-  // Collect SSDP responses for 1 second before timing out
+  // Collect SSDP responses for 3 seconds before timing out
   return new Promise(function (F, R) {
     setTimeout(function () {
       if (ssdpResponses.length > 0) { F(ssdpResponses); }
       else { R(new Error("SSDP timeout")); }
-    }, 1000);
+    }, 3000);
   });
 };
 
