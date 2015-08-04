@@ -32,6 +32,7 @@ var UPNP_PROBE_PORT = 55557;
 * @property {number} timeoutId The timeout ID if the mapping is refreshed
 * @property {array} nonce Only for PCP; the nonce field for deletion
 * @property {function} deleter Deletes the mapping from activeMappings and router
+* @property {string} errInfo Error message if failure; currently used only for UPnP 
 */
 var Mapping = function () {
    this.internalIp = undefined;
@@ -43,6 +44,7 @@ var Mapping = function () {
    this.timeoutId = undefined;
    this.nonce = undefined;
    this.deleter = undefined;
+   this.errInfo = undefined;
 };
 
 /**

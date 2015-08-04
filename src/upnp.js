@@ -10,8 +10,14 @@ var utils = require('./utils');
 */
 var probeSupport = function (activeMappings) {
   return addMapping(utils.UPNP_PROBE_PORT, utils.UPNP_PROBE_PORT, 120,
-                    activeMappings).
-      then(function (mapping) { return mapping.externalPort !== -1; });
+                    activeMappings).then(function (mapping) { 
+        if (mapping.errInfo && 
+            mapping.errInfo.indexOf('ConflictInMappingEntry') !== -1) {
+          // This error response suggests that UPnP is enabled
+          return true;
+        }
+        return mapping.externalPort !== -1; 
+      });
 };
 
 /**
@@ -76,6 +82,7 @@ var addMapping = function (intPort, extPort, lifetime, activeMappings) {
     }).catch(function (err) {
       // Either timeout, runtime error, or error response to AddPortMapping
       console.log("UPnP failed at: " + err.message);
+      mapping.errInfo = err.message;
       return mapping;
     });
   }

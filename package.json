@@ -1,7 +1,7 @@
 {
   "name": "freedom-port-control",
   "description": "Opens ports through a NAT with NAT-PMP, PCP, and UPnP",
-  "version": "0.9.6",
+  "version": "0.9.7",
   "author": "Kenny Song <kenny.ysong@gmail.com>",
   "repository": {
     "type": "git",

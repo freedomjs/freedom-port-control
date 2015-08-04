@@ -19,7 +19,8 @@
         "ret": {"internalIp": "string", "internalPort": "number",
                 "externalIp": "string", "externalPort": "number",
                 "lifetime": "number", "protocol": "string",
-                "timeoutId": "number", "nonce": ["array", "number"]}
+                "timeoutId": "number", "nonce": ["array", "number"],
+                "errInfo": "string"}
       },
 
       "deleteMapping": {
@@ -46,7 +47,8 @@
         "ret": {"internalIp": "string", "internalPort": "number",
                 "externalIp": "string", "externalPort": "number",
                 "lifetime": "number", "protocol": "string",
-                "timeoutId": "number", "nonce": ["array", "number"]}
+                "timeoutId": "number", "nonce": ["array", "number"],
+                "errInfo": "string"}
       },
 
       "deleteMappingPmp": {
@@ -67,7 +69,8 @@
         "ret": {"internalIp": "string", "internalPort": "number",
                 "externalIp": "string", "externalPort": "number",
                 "lifetime": "number", "protocol": "string",
-                "timeoutId": "number", "nonce": ["array", "number"]}
+                "timeoutId": "number", "nonce": ["array", "number"],
+                "errInfo": "string"}
       },
 
       "deleteMappingPcp": {
@@ -88,7 +91,8 @@
         "ret": {"internalIp": "string", "internalPort": "number",
                 "externalIp": "string", "externalPort": "number",
                 "lifetime": "number", "protocol": "string",
-                "timeoutId": "number", "nonce": ["array", "number"]}
+                "timeoutId": "number", "nonce": ["array", "number"],
+                "errInfo": "string"}
       },
 
       "deleteMappingUpnp": {
