@@ -36,6 +36,13 @@ function start(instance) {
     });
   });
 
+  document.getElementById('protocol-support').addEventListener('click', function () {
+    portControl.getProtocolSupportCache().then(function (support) {
+      document.getElementById('result-protocol-support').innerText =
+          JSON.stringify(support, null, 2);
+    });
+  });
+
   document.getElementById('add-PMP').addEventListener('click', function () {
     var intPort = document.getElementById('internal-port-PMP').value;
     var extPort = document.getElementById('external-port-PMP').value;
