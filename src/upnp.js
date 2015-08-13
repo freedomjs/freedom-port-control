@@ -45,7 +45,7 @@ var addMapping = function (intPort, extPort, lifetime, activeMappings,
   // If we pass in a control URL, we don't need to do the SSDP step
   function _handleUpnpFlow() {
     if (controlUrl !== undefined) { return _handleControlUrl(controlUrl); }
-    return getUpnpControlUrl().then(function (url) {
+    return _getUpnpControlUrl().then(function (url) {
       controlUrl = url;
       return _handleControlUrl(url);
     }).catch(_handleError);
@@ -130,11 +130,11 @@ var deleteMapping = function (extPort, activeMappings, controlUrl) {
 /**
  * Return the UPnP control URL of a router on the network that supports UPnP IGD
  * This wraps sendSsdpRequest() and fetchControlUrl() together
- * @public
- * @method getUpnpControlUrl
+ * @private
+ * @method _getUpnpControlUrl
  * @return {Promise<string>} A promise for the URL, rejects if not supported
  */
-var getUpnpControlUrl = function () {
+var _getUpnpControlUrl = function () {
   // After collecting all the SSDP responses, try to get the
   // control URL field for each response, and return an array
   return sendSsdpRequest().then(function (ssdpResponses) {
@@ -150,6 +150,18 @@ var getUpnpControlUrl = function () {
       if (controlUrls[i] !== null) { return controlUrls[i]; }
     }
   }).catch(function (err) { return Promise.reject(err); });
+};
+
+/**
+ * A public version of _getUpnpControlUrl that suppresses the Promise rejection,
+ * and replaces it with undefined. This is useful outside this module in a 
+ * Promise.all(), while inside we want to propagate the errors upwards
+ * @public
+ * @method getUpnpControlUrl
+ * @return {Promise<string>} A promise for the URL, undefined if not supported
+ */
+var getUpnpControlUrl = function () {
+  return _getUpnpControlUrl().catch(function (err) {});
 };
 
 /**

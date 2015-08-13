@@ -168,7 +168,7 @@ PortControl.prototype.addMappingPmp = function (intPort, extPort, lifetime) {
 */
 PortControl.prototype.deleteMappingPmp = function (extPort) {
   var mapping = this.activeMappings[extPort];
-  if (mapping === undefined || mapping.protocol !== 'pmp') { 
+  if (mapping === undefined || mapping.protocol !== 'natPmp') { 
     return Promise.resolve(false); 
   }
   return mapping.deleter();
