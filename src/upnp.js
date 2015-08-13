@@ -48,7 +48,7 @@ var addMapping = function (intPort, extPort, lifetime, activeMappings,
     return getUpnpControlUrl().then(function (url) {
       controlUrl = url;
       return _handleControlUrl(url);
-    });
+    }).catch(_handleError);
   }
 
   // Process and send an AddPortMapping request to the control URL
@@ -58,13 +58,12 @@ var addMapping = function (intPort, extPort, lifetime, activeMappings,
       // for this UPnP router, by doing a longest prefix match, and use it to
       // send an AddPortMapping request
       var routerIp = (new URL(controlUrl)).hostname;
-      if (routerIp !== undefined) {
-        utils.getPrivateIps().then(function(privateIps) {
-          internalIp = utils.longestPrefixMatch(privateIps, routerIp);
-          F(sendAddPortMapping(controlUrl, internalIp, intPort, 
-                                    extPort, lifetime));
-        });
-      } else { R(new Error("No UPnP devices have a control URL")); }
+      utils.getPrivateIps().then(function(privateIps) {
+        internalIp = utils.longestPrefixMatch(privateIps, routerIp);
+        sendAddPortMapping(controlUrl, internalIp, intPort, extPort, lifetime).
+            then(function (response) { F(response); }).
+            catch(function (err) { R(err); });
+      });
     }).then(function (response) {
       // Success response to AddPortMapping (the internal IP of the mapping)
       // The requested external port will always be mapped on success, and the
@@ -73,12 +72,7 @@ var addMapping = function (intPort, extPort, lifetime, activeMappings,
       mapping.internalIp = internalIp;
       mapping.lifetime = lifetime;
       return mapping;
-    }).catch(function (err) {
-      // Either timeout, runtime error, or error response to AddPortMapping
-      console.log("UPnP failed at: " + err.message);
-      mapping.errInfo = err.message;
-      return mapping;
-    });
+    }).catch(_handleError);
   }
 
   // Save the Mapping object in activeMappings on success, and set a timeout 
@@ -98,6 +92,13 @@ var addMapping = function (intPort, extPort, lifetime, activeMappings,
                                            activeMappings, controlUrl);
       activeMappings[mapping.externalPort] = mapping;
     }
+    return mapping;
+  }
+
+  // If we catch an error, add it to the mapping object and console.log()
+  function _handleError(err) {
+    console.log("UPnP failed at: " + err.message);
+    mapping.errInfo = err.message;
     return mapping;
   }
 
@@ -131,7 +132,7 @@ var deleteMapping = function (extPort, activeMappings, controlUrl) {
  * This wraps sendSsdpRequest() and fetchControlUrl() together
  * @public
  * @method getUpnpControlUrl
- * @return {Promise<string>} A promise for the URL, empty string if not supported
+ * @return {Promise<string>} A promise for the URL, rejects if not supported
  */
 var getUpnpControlUrl = function () {
   // After collecting all the SSDP responses, try to get the
@@ -143,11 +144,12 @@ var getUpnpControlUrl = function () {
           catch(function (err) { return null; });
     }));
   }).then(function (controlUrls) {
-    // We return the first controlURL we found
+    // We return the first control URL we found; 
+    // there should always be at least one if we reached this block
     for (var i = 0; i < controlUrls.length; i++) {
       if (controlUrls[i] !== null) { return controlUrls[i]; }
     }
-  });
+  }).catch(function (err) { return Promise.reject(err); });
 };
 
 /**
