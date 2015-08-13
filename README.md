@@ -57,7 +57,7 @@ This method returns a promise that will resolve to a `Mapping` object of the for
 }
 ```
 
-An important optimization note: by default, `addMapping()` will try all the protocols sequentially (in order of NAT-PMP, PCP, UPnP). If we're waiting for timeouts, then this method can take up to ~10 seconds to run. This may be too slow for practical purposes. Instead, run `probeProcotolSupport()` at some point before (also can take up to ~10 seconds), which will cache the results, so that `addMapping()` will only try one protocol that has worked before (this will take <2 seconds).
+_An important optimization note: by default, `addMapping()` will try all the protocols sequentially (in order of NAT-PMP, PCP, UPnP). If we're waiting for timeouts, then this method can take up to ~10 seconds to run. This may be too slow for practical purposes. Instead, run `probeProcotolSupport()` at some point before (also can take up to ~10 seconds), which will cache the results, so that `addMapping()` will only try one protocol that has worked before (this will take <2 seconds)._
 
 You can also create a port mapping with a specific protocol:
 
