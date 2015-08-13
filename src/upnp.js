@@ -29,48 +29,42 @@ var probeSupport = function (activeMappings) {
 * @param {number} lifetime Seconds that the mapping will last
 *                          0 is infinity; a static AddPortMapping request
 * @param {object} activeMappings Table of active Mappings
+* @param {string=} controlUrl Optional: a control URL for the router
 * @return {Promise<Mapping>} A promise for the port mapping object 
 *                               mapping.externalPort is -1 on failure
 */
-var addMapping = function (intPort, extPort, lifetime, activeMappings) {
+var addMapping = function (intPort, extPort, lifetime, activeMappings,
+                           controlUrl) {
+  var internalIp;  // Internal IP of the user's computer
   var mapping = new utils.Mapping();
   mapping.internalPort = intPort;
   mapping.protocol = 'upnp';
 
   // Does the UPnP flow to send a AddPortMapping request
   // (1. SSDP, 2. GET location URL, 3. POST to control URL)
+  // If we pass in a control URL, we don't need to do the SSDP step
   function _handleUpnpFlow() {
-    // After collecting all the SSDP responses, try to get the
-    // control URL field for each response, and return an array
-    var internalIp;
-    return sendSsdpRequest().then(function (ssdpResponses) {
-      return Promise.all(ssdpResponses.map(function (ssdpResponse) {
-        return fetchControlUrl(ssdpResponse).
-            then(function (controlUrl) { return controlUrl; }).
-            catch(function (err) { return null; });
-      }));
-    }).then(function (controlUrls) {
-      // Find the first control URL that we received; use it for AddPortMapping
-      // and parse the router IP from the control URL
-      var routerIp, controlUrl;
-      for (var i = 0; i < controlUrls.length; i++) {
-        controlUrl = controlUrls[i];
-        if (controlUrl !== null) {
-          routerIp = (new URL(controlUrl)).hostname;
-          break;
-        }
-      }
+    if (controlUrl !== undefined) { return _handleControlUrl(controlUrl); }
+    return getUpnpControlUrl().then(function (url) {
+      controlUrl = url;
+      return _handleControlUrl(url);
+    });
+  }
 
+  // Process and send an AddPortMapping request to the control URL
+  function _handleControlUrl(controlUrl) {
+    return new Promise(function (F, R) {
       // Get the correct internal IP (if there are multiple network interfaces)
       // for this UPnP router, by doing a longest prefix match, and use it to
       // send an AddPortMapping request
+      var routerIp = (new URL(controlUrl)).hostname;
       if (routerIp !== undefined) {
-        return utils.getPrivateIps().then(function(privateIps) {
+        utils.getPrivateIps().then(function(privateIps) {
           internalIp = utils.longestPrefixMatch(privateIps, routerIp);
-          return sendAddPortMapping(controlUrl, internalIp, intPort, 
-                                    extPort, lifetime);
+          F(sendAddPortMapping(controlUrl, internalIp, intPort, 
+                                    extPort, lifetime));
         });
-      } else { throw new Error("No UPnP devices have a control URL"); }
+      } else { R(new Error("No UPnP devices have a control URL")); }
     }).then(function (response) {
       // Success response to AddPortMapping (the internal IP of the mapping)
       // The requested external port will always be mapped on success, and the
@@ -100,7 +94,8 @@ var addMapping = function (intPort, extPort, lifetime, activeMappings) {
 
     // If mapping succeeded, attach a deleter function and add to activeMappings
     if (mapping.externalPort !== -1) {
-      mapping.deleter = deleteMapping.bind({}, mapping.externalPort, activeMappings);
+      mapping.deleter = deleteMapping.bind({}, mapping.externalPort, 
+                                           activeMappings, controlUrl);
       activeMappings[mapping.externalPort] = mapping;
     }
     return mapping;
@@ -117,45 +112,41 @@ var addMapping = function (intPort, extPort, lifetime, activeMappings) {
 * @method deleteMapping
 * @param {number} extPort The external port of the mapping to delete
 * @param {object} activeMappings Table of active Mappings
+* @param {string} controlUrl A control URL for the router (not optional!)
 * @return {Promise<boolean>} True on success, false on failure
 */
-var deleteMapping = function (extPort, activeMappings) {
-  // Does the UPnP flow for deleting a mapping
-  // (1. SSDP, 2. GET location URL, 3. POST to control URL)
-  function _handleUpnpFlow() {
-    return sendSsdpRequest().then(function (ssdpResponses) {
-      // After collecting all the SSDP responses, try to get the
-      // control URL field for each response, and return an array
-      return Promise.all(ssdpResponses.map(function (ssdpResponse) {
-        return fetchControlUrl(ssdpResponse).
-            then(function (controlUrl) { return controlUrl; }).
-            catch(function (err) { return null; });
-      }));
-    }).then(function (controlUrls) {
-      // Find the first control URL that we received; we use it for DeletePortMapping
-      var controlUrl;
-      for (var i = 0; i < controlUrls.length; i++) {
-        if (controlUrls[i] !== null) {
-          controlUrl = controlUrls[i];
-          break;
-        }
-      }
-      // Send the DeletePortMapping request
-      if (controlUrl !== undefined) {
-        return sendDeletePortMapping(controlUrl, extPort);
-      } else {
-        throw new Error("No UPnP devices have a control URL");
-      }
-    });
-  }
-
+var deleteMapping = function (extPort, activeMappings, controlUrl) {
   // Do the UPnP flow to delete a mapping, and if successful, remove it from
   // activeMappings and return true 
-  return _handleUpnpFlow().then(function() {
+  return sendDeletePortMapping(controlUrl, extPort).then(function() {
     delete activeMappings[extPort];
     return true;
   }).catch(function (err) {
     return false;
+  });
+};
+
+/**
+ * Return the UPnP control URL of a router on the network that supports UPnP IGD
+ * This wraps sendSsdpRequest() and fetchControlUrl() together
+ * @public
+ * @method getUpnpControlUrl
+ * @return {Promise<string>} A promise for the URL, empty string if not supported
+ */
+var getUpnpControlUrl = function () {
+  // After collecting all the SSDP responses, try to get the
+  // control URL field for each response, and return an array
+  return sendSsdpRequest().then(function (ssdpResponses) {
+    return Promise.all(ssdpResponses.map(function (ssdpResponse) {
+      return fetchControlUrl(ssdpResponse).
+          then(function (controlUrl) { return controlUrl; }).
+          catch(function (err) { return null; });
+    }));
+  }).then(function (controlUrls) {
+    // We return the first controlURL we found
+    for (var i = 0; i < controlUrls.length; i++) {
+      if (controlUrls[i] !== null) { return controlUrls[i]; }
+    }
   });
 };
 
@@ -373,5 +364,6 @@ var sendDeletePortMapping = function (controlUrl, extPort) {
 module.exports = {
   probeSupport: probeSupport,
   addMapping: addMapping,
-  deleteMapping: deleteMapping
+  deleteMapping: deleteMapping,
+  getUpnpControlUrl: getUpnpControlUrl
 };

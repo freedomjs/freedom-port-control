@@ -87,7 +87,7 @@
 
       "addMappingUpnp": {
         "type": "method",
-        "value": ["number", "number", "number"],
+        "value": ["number", "number", "number", "string"],
         "ret": {"internalIp": "string", "internalPort": "number",
                 "externalIp": "string", "externalPort": "number",
                 "lifetime": "number", "protocol": "string",
@@ -101,6 +101,12 @@
         "ret": "boolean"
       },
 
+      "getUpnpControlUrl": {
+        "type": "method",
+        "value": [],
+        "ret": "string"
+      },
+
       "getActiveMappings": {
         "type": "method",
         "value": [],
@@ -111,6 +117,13 @@
         "type": "method",
         "value": [],
         "ret": ["array", "string"]
+      },
+
+      "getProtocolSupportCache": {
+        "type": "method",
+        "value": [],
+        "ret": {"natPmp": "boolean", "pcp": "boolean",
+                "upnp": "boolean", "upnpControlUrl": "string"}
       },
 
       "getPrivateIps": {
