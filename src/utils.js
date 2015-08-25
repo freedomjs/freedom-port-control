@@ -81,9 +81,10 @@ var getPrivateIps = function () {
   // Gather candidates for 2 seconds before returning privateIps or timing out
   return new Promise(function (F, R) {
     setTimeout(function () {
-      pc.close().then(function () {
+      var cleanup = function() {
         freedom['core.rtcpeerconnection'].close(pc);
-      });
+      };
+      pc.close().then(cleanup, cleanup);
       if (privateIps.length > 0) { F(privateIps); }
       else { R(new Error("getPrivateIps() failed")); }
     }, 2000);
