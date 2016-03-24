@@ -32,7 +32,7 @@ var UPNP_PROBE_PORT = 55557;
 * @property {number} timeoutId The timeout ID if the mapping is refreshed
 * @property {array} nonce Only for PCP; the nonce field for deletion
 * @property {function} deleter Deletes the mapping from activeMappings and router
-* @property {string} errInfo Error message if failure; currently used only for UPnP 
+* @property {string} errInfo Error message if failure; currently used only for UPnP
 */
 var Mapping = function () {
    this.internalIp = undefined;
@@ -51,10 +51,13 @@ var Mapping = function () {
 * Return the private IP addresses of the computer
 * @public
 * @method getPrivateIps
-* @return {Promise<string>} A promise that fulfills with a list of IP address, 
+* @return {Promise<string>} A promise that fulfills with a list of IP address,
 *                           or rejects on timeout
 */
 var getPrivateIps = function () {
+  if (typeof freedom === 'undefined') {
+    return getPrivateIpsNode();
+  }
   var privateIps = [];
   var pc = freedom['core.rtcpeerconnection']({iceServers: []});
 
@@ -91,11 +94,26 @@ var getPrivateIps = function () {
   });
 };
 
+var getPrivateIpsNode = function () {
+  var node_dep = 'os';
+  var os = require(node_dep);
+  var ifaces = os.networkInterfaces();
+  var addresses = [];
+  Object.keys(ifaces).forEach(function (iface) {
+    if (iface.family === 'IPv4' && iface.internal !== false) {
+      addresses.push(iface.address);
+    }
+  });
+  return new Promise(function (resolve, reject) {
+    resolve(addresses);
+  });
+};
+
 /**
 * Filters routerIps for only those that match any of the user's IPs in privateIps
 * i.e. The longest prefix matches of the router IPs with each user IP* @public
-* @method filterRouterIps 
-* @param  {Array<string>} privateIps Private IPs to match router IPs to 
+* @method filterRouterIps
+* @param  {Array<string>} privateIps Private IPs to match router IPs to
 * @return {Array<string>} Router IPs that matched (one per private IP)
 */
 var filterRouterIps = function (privateIps) {
@@ -108,26 +126,39 @@ var filterRouterIps = function (privateIps) {
 
 /**
  * Creates an ArrayBuffer with a compact matrix notation, i.e.
- * [[bits, byteOffset, value], 
+ * [[bits, byteOffset, value],
  *  [8, 0, 1], //=> DataView.setInt8(0, 1)
  *  ... ]
  * @public
- * @method createArrayBuffer 
+ * @method createArrayBuffer
  * @param  {number} bytes Size of the ArrayBuffer in bytes
  * @param  {Array<Array<number>>} matrix Matrix of values for the ArrayBuffer
  * @return {ArrayBuffer} An ArrayBuffer constructed from matrix
  */
 var createArrayBuffer = function (bytes, matrix) {
-  var buffer = new ArrayBuffer(bytes);
-  var view = new DataView(buffer);
-  for (var i = 0; i < matrix.length; i++) {
-    var row = matrix[i];
-    if (row[0] === 8) { view.setInt8(row[1], row[2]); } 
-    else if (row[0] === 16) { view.setInt16(row[1], row[2], false); } 
-    else if (row[0] === 32) { view.setInt32(row[1], row[2], false); }
-    else { console.error("Invalid parameters to createArrayBuffer"); }
+  if (typeof Buffer === 'function') {
+    var buffer = new Buffer(bytes);
+    buffer.fill(0);
+    for (var i = 0; i < matrix.length; i++) {
+      var row = matrix[i];
+      if (row[0] === 8) { buffer.writeUInt8(row[2], row[1]); }
+      else if (row[0] === 16) { buffer.writeUInt16BE(row[2], row[1]); }
+      else if (row[0] === 32) { buffer.writeUInt32BE(row[2], row[1]); }
+      else { console.error("Invalid parameters to createArrayBuffer"); }
+    }
+    return buffer;
+  } else {
+    var buffer = new ArrayBuffer(bytes);
+    var view = new DataView(buffer);
+    for (var i = 0; i < matrix.length; i++) {
+      var row = matrix[i];
+      if (row[0] === 8) { view.setInt8(row[1], row[2]); }
+      else if (row[0] === 16) { view.setInt16(row[1], row[2], false); }
+      else if (row[0] === 32) { view.setInt32(row[1], row[2], false); }
+      else { console.error("Invalid parameters to createArrayBuffer"); }
+    }
+    return buffer;
   }
-  return buffer;
 };
 
 /**
@@ -150,16 +181,64 @@ var countdownReject = function (time, msg, callback) {
 };
 
 /**
+ * Open an OS-level socket using freedom if we're in that context, or
+ * node if not.
+ * @public
+ * @method openSocket
+ */
+var openSocket = function () {
+  if (typeof freedom !== 'undefined') {
+    return freedom['core.udpsocket']();
+  } else {
+    // Use variable require to prevent browserify from trying to include dgram.
+    var node_dep = 'dgram';
+    var dgram = require(node_dep);
+    return dgram.createSocket('udp4');
+  }
+};
+
+/**
 * Close the OS-level sockets and discard its Freedom object
 * @public
 * @method closeSocket
 * @param {freedom_UdpSocket.Socket} socket The socket object to close
 */
 var closeSocket = function (socket) {
-  socket.destroy().then(function () {
-    freedom['core.udpsocket'].close(socket);
-  });
+  if (typeof freedom !== 'undefined') {
+    socket.destroy().then(function () {
+      freedom['core.udpsocket'].close(socket);
+    });
+  } else {
+    socket.close();
+  }
 };
+
+var bindSocket = function (socket, ip, port, callback) {
+  if (typeof freedom !== 'undefined') {
+    return socket.bind(ip, port).then(callback);
+  } else {
+    return socket.bind({
+      port: port,
+      address: ip
+    }, callback);
+  }
+};
+
+var sendSocket = function (socket, msg, ip, port) {
+  if (typeof freedom !== 'undefined') {
+    return socket.sendTo(msg, ip, port);
+  } else {
+    return socket.send(msg, 0, msg.length, port, ip);
+  }
+}
+
+var socketDataHandler = function () {
+  if (typeof freedom !== 'undefined') {
+    return 'onData';
+  } else {
+    return 'message';
+  }
+}
 
 /**
 * Takes a list of IP addresses and an IP address, and returns the longest prefix
@@ -226,18 +305,22 @@ var arrayBufferToString = function (buffer) {
 * @return {ArrayBuffer} An ArrayBuffer containing the string data
 */
 var stringToArrayBuffer = function (s) {
+  if (typeof Buffer === 'function') {
+    return new Buffer(s);
+  } else {
     var buffer = new ArrayBuffer(s.length);
     var bytes = new Uint8Array(buffer);
     for (var i = 0; i < s.length; ++i) {
         bytes[i] = s.charCodeAt(i);
     }
     return buffer;
+  }
 };
 
 /**
  * Returns the difference between two arrays
- * @param  {Array} listA 
- * @param  {Array} listB 
+ * @param  {Array} listA
+ * @param  {Array} listB
  * @return {Array} The difference array
  */
 var arrDiff = function (listA, listB) {
@@ -250,8 +333,8 @@ var arrDiff = function (listA, listB) {
 
 /**
  * Adds two arrays, but doesn't include repeated elements
- * @param  {Array} listA 
- * @param  {Array} listB 
+ * @param  {Array} listA
+ * @param  {Array} listB
  * @return {Array} The sum of the two arrays with no duplicates
  */
 var arrAdd = function (listA, listB) {
@@ -274,7 +357,11 @@ module.exports = {
   getPrivateIps: getPrivateIps,
   createArrayBuffer: createArrayBuffer,
   countdownReject: countdownReject,
+  openSocket: openSocket,
   closeSocket: closeSocket,
+  bindSocket: bindSocket,
+  sendSocket: sendSocket,
+  socketDataHandler: socketDataHandler,
   filterRouterIps: filterRouterIps,
   longestPrefixMatch: longestPrefixMatch,
   randInt: randInt,

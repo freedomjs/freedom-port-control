@@ -79,11 +79,11 @@ var addMapping = function (intPort, extPort, lifetime, activeMappings, routerIpC
     });
   }
 
-  // Basically calls _sendPcpRequests on matchedRouterIps first, and if that 
+  // Basically calls _sendPcpRequests on matchedRouterIps first, and if that
   // doesn't work, calls it on otherRouterIps
   function _sendPmpRequestsInWaves() {
     return utils.getPrivateIps().then(function (privateIps) {
-      // Try matchedRouterIps first (routerIpCache + router IPs that match the 
+      // Try matchedRouterIps first (routerIpCache + router IPs that match the
       // user's IPs), then otherRouterIps if it doesn't work. This avoids flooding
       // the local network with NAT-PMP requests
       var matchedRouterIps = utils.arrAdd(routerIpCache, utils.filterRouterIps(privateIps));
@@ -96,7 +96,7 @@ var addMapping = function (intPort, extPort, lifetime, activeMappings, routerIpC
   }
 
   // Compare our requested parameters for the mapping with the response,
-  // setting a refresh if necessary, and a timeout for deletion, and saving the 
+  // setting a refresh if necessary, and a timeout for deletion, and saving the
   // mapping object to activeMappings if the mapping succeeded
   function _saveAndRefreshMapping(mapping) {
     // If the actual lifetime is less than the requested lifetime,
@@ -108,26 +108,26 @@ var addMapping = function (intPort, extPort, lifetime, activeMappings, routerIpC
     }
     // If the original lifetime is 0, refresh every 24 hrs indefinitely
     else if (mapping.externalPort !== -1 && lifetime === 0) {
-      mapping.timeoutId = setTimeout(addMapping.bind({}, intPort, 
+      mapping.timeoutId = setTimeout(addMapping.bind({}, intPort,
                        mapping.externalPort, 0, activeMappings), 24*60*60*1000);
     }
     // If we're not refreshing, delete the entry from activeMapping at expiration
     else if (mapping.externalPort !== -1) {
-      setTimeout(function () { delete activeMappings[mapping.externalPort]; }, 
+      setTimeout(function () { delete activeMappings[mapping.externalPort]; },
                  mapping.lifetime*1000);
     }
 
     // If mapping succeeded, attach a deleter function and add to activeMappings
     if (mapping.externalPort !== -1) {
-      mapping.deleter = deleteMapping.bind({}, mapping.externalPort, 
+      mapping.deleter = deleteMapping.bind({}, mapping.externalPort,
                                            activeMappings, routerIpCache);
       activeMappings[mapping.externalPort] = mapping;
     }
     return mapping;
   }
 
-  // Try NAT-PMP requests to matchedRouterIps, then otherRouterIps. 
-  // After receiving a NAT-PMP response, set timeouts to delete/refresh the 
+  // Try NAT-PMP requests to matchedRouterIps, then otherRouterIps.
+  // After receiving a NAT-PMP response, set timeouts to delete/refresh the
   // mapping, add it to activeMappings, and return the mapping object
   return _sendPmpRequestsInWaves().then(_saveAndRefreshMapping);
 };
@@ -159,11 +159,11 @@ var deleteMapping = function (extPort, activeMappings, routerIpCache) {
     });
   }
 
-  // Basically calls _sendDeletionRequests on matchedRouterIps first, and if that 
+  // Basically calls _sendDeletionRequests on matchedRouterIps first, and if that
   // doesn't work, calls it on otherRouterIps
   function _sendDeletionRequestsInWaves() {
     return utils.getPrivateIps().then(function (privateIps) {
-      // Try matchedRouterIps first (routerIpCache + router IPs that match the 
+      // Try matchedRouterIps first (routerIpCache + router IPs that match the
       // user's IPs), then otherRouterIps if it doesn't work. This avoids flooding
       // the local network with PCP requests
       var matchedRouterIps = utils.arrAdd(routerIpCache, utils.filterRouterIps(privateIps));
@@ -175,7 +175,7 @@ var deleteMapping = function (extPort, activeMappings, routerIpCache) {
     });
   }
 
-  // If any of the NAT-PMP responses were successful, delete the entry from 
+  // If any of the NAT-PMP responses were successful, delete the entry from
   // activeMappings and return true
   function _deleteFromActiveMappings(responses) {
     for (var i = 0; i < responses.length; i++) {
@@ -215,10 +215,10 @@ var sendPmpRequest = function (routerIp, intPort, extPort, lifetime) {
 
   // Binds a socket and sends the NAT-PMP request from that socket to routerIp
   var _sendPmpRequest = new Promise(function (F, R) {
-    socket = freedom['core.udpsocket']();
+    socket = utils.openSocket();
 
     // Fulfill when we get any reply (failure is on timeout in wrapper function)
-    socket.on('onData', function (pmpResponse) {
+    socket.on(utils.socketDataHandler(), function (pmpResponse) {
       utils.closeSocket(socket);
       F(pmpResponse.data);
     });
@@ -227,7 +227,7 @@ var sendPmpRequest = function (routerIp, intPort, extPort, lifetime) {
     // https://github.com/uProxy/uproxy/issues/1687
 
     // Bind a UDP port and send a NAT-PMP request
-    socket.bind('0.0.0.0', 0).then(function (result) {
+    utils.bindSocket(socket, '0.0.0.0', 0, function (result) {
       // NAT-PMP packet structure: https://tools.ietf.org/html/rfc6886#section-3.3
       var pmpBuffer = utils.createArrayBuffer(12, [
         [8, 1, 1],
@@ -235,7 +235,7 @@ var sendPmpRequest = function (routerIp, intPort, extPort, lifetime) {
         [16, 6, extPort],
         [32, 8, lifetime]
       ]);
-      socket.sendTo(pmpBuffer, routerIp, 5351);
+      utils.sendSocket(socket, pmpBuffer, routerIp, 5351);
     });
   });
 

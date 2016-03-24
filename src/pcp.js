@@ -26,7 +26,7 @@ var probeSupport = function (activeMappings, routerIpCache) {
 *                          0 is infinity, i.e. a refresh every 24 hours
 * @param {object} activeMappings Table of active Mappings
 * @param {Array<string>} routerIpCache Router IPs that have previously worked
-* @return {Promise<Mapping>} A promise for the port mapping object 
+* @return {Promise<Mapping>} A promise for the port mapping object
 *                            mapping.externalPort is -1 on failure
 */
 var addMapping = function (intPort, extPort, lifetime, activeMappings, routerIpCache) {
@@ -47,7 +47,7 @@ var addMapping = function (intPort, extPort, lifetime, activeMappings, routerIpC
         // Choose a privateIp based on the currently selected routerIp,
         // using a longest prefix match, and send a PCP request with that IP
         var privateIp = utils.longestPrefixMatch(privateIps, routerIp);
-        return sendPcpRequest(routerIp, privateIp, intPort, extPort, 
+        return sendPcpRequest(routerIp, privateIp, intPort, extPort,
                                     reqLifetime).
             then(function (pcpResponse) {
               return {"pcpResponse": pcpResponse, "privateIp": privateIp};
@@ -70,7 +70,7 @@ var addMapping = function (intPort, extPort, lifetime, activeMappings, routerIpC
           mapping.externalIp = extIp;
           mapping.internalIp = responses[i].privateIp;
           mapping.lifetime = responseView.getUint32(4);
-          mapping.nonce = [responseView.getUint32(24), 
+          mapping.nonce = [responseView.getUint32(24),
                            responseView.getUint32(28),
                            responseView.getUint32(32)];
 
@@ -85,11 +85,11 @@ var addMapping = function (intPort, extPort, lifetime, activeMappings, routerIpC
     });
   }
 
-  // Basically calls _sendPcpRequests on matchedRouterIps first, and if that 
+  // Basically calls _sendPcpRequests on matchedRouterIps first, and if that
   // doesn't work, calls it on otherRouterIps
   function _sendPcpRequestsInWaves() {
     return utils.getPrivateIps().then(function (privateIps) {
-      // Try matchedRouterIps first (routerIpCache + router IPs that match the 
+      // Try matchedRouterIps first (routerIpCache + router IPs that match the
       // user's IPs), then otherRouterIps if it doesn't work. This avoids flooding
       // the local network with PCP requests
       var matchedRouterIps = utils.arrAdd(routerIpCache, utils.filterRouterIps(privateIps));
@@ -102,7 +102,7 @@ var addMapping = function (intPort, extPort, lifetime, activeMappings, routerIpC
   }
 
   // Compare our requested parameters for the mapping with the response,
-  // setting a refresh if necessary, and a timeout for deletion, and saving the 
+  // setting a refresh if necessary, and a timeout for deletion, and saving the
   // mapping object to activeMappings if the mapping succeeded
   function _saveAndRefreshMapping(mapping) {
     // If the actual lifetime is less than the requested lifetime,
@@ -132,8 +132,8 @@ var addMapping = function (intPort, extPort, lifetime, activeMappings, routerIpC
     return mapping;
   }
 
-  // Try PCP requests to matchedRouterIps, then otherRouterIps. 
-  // After receiving a PCP response, set timeouts to delete/refresh the 
+  // Try PCP requests to matchedRouterIps, then otherRouterIps.
+  // After receiving a PCP response, set timeouts to delete/refresh the
   // mapping, add it to activeMappings, and return the mapping object
   return _sendPcpRequestsInWaves().then(_saveAndRefreshMapping);
 };
@@ -169,11 +169,11 @@ var deleteMapping = function (extPort, activeMappings, routerIpCache) {
    });
  }
 
-  // Basically calls _sendDeletionRequests on matchedRouterIps first, and if that 
+  // Basically calls _sendDeletionRequests on matchedRouterIps first, and if that
   // doesn't work, calls it on otherRouterIps
   function _sendDeletionRequestsInWaves() {
     return utils.getPrivateIps().then(function (privateIps) {
-      // Try matchedRouterIps first (routerIpCache + router IPs that match the 
+      // Try matchedRouterIps first (routerIpCache + router IPs that match the
       // user's IPs), then otherRouterIps if it doesn't work. This avoids flooding
       // the local network with PCP requests
       var matchedRouterIps = utils.arrAdd(routerIpCache, utils.filterRouterIps(privateIps));
@@ -185,7 +185,7 @@ var deleteMapping = function (extPort, activeMappings, routerIpCache) {
     });
   }
 
-  // If any of the PCP responses were successful, delete the entry from 
+  // If any of the PCP responses were successful, delete the entry from
   // activeMappings and return true
   function _deleteFromActiveMappings(responses) {
     for (var i = 0; i < responses.length; i++) {
@@ -198,7 +198,7 @@ var deleteMapping = function (extPort, activeMappings, routerIpCache) {
           clearTimeout(activeMappings[extPort].timeoutId);
           delete activeMappings[extPort];
           return true;
-        } 
+        }
       }
     }
     return false;
@@ -224,30 +224,30 @@ var deleteMapping = function (extPort, activeMappings, routerIpCache) {
 * @return {Promise<ArrayBuffer>} A promise that fulfills with the PCP response
 *                                or rejects on timeout
 */
-var sendPcpRequest = function (routerIp, privateIp, intPort, extPort, lifetime, 
+var sendPcpRequest = function (routerIp, privateIp, intPort, extPort, lifetime,
                                nonce) {
   var socket;
 
   // Pre-process nonce and privateIp arguments
   if (nonce === undefined) {
-    nonce = [utils.randInt(0, 0xffffffff), 
-             utils.randInt(0, 0xffffffff), 
+    nonce = [utils.randInt(0, 0xffffffff),
+             utils.randInt(0, 0xffffffff),
              utils.randInt(0, 0xffffffff)];
   }
   var ipOctets = ipaddr.IPv4.parse(privateIp).octets;
 
   // Bind a socket and send the PCP request from that socket to routerIp
   var _sendPcpRequest = new Promise(function (F, R) {
-    socket = freedom['core.udpsocket']();
+    socket = utils.openSocket();
 
     // Fulfill when we get any reply (failure is on timeout in wrapper function)
-    socket.on('onData', function (pcpResponse) {
+    socket.on(utils.socketDataHandler(), function (pcpResponse) {
       utils.closeSocket(socket);
       F(pcpResponse.data);
     });
 
     // Bind a UDP port and send a PCP request
-    socket.bind('0.0.0.0', 0).then(function (result) {
+    utils.bindSocket(socket, '0.0.0.0', 0, function (result) {
       // PCP packet structure: https://tools.ietf.org/html/rfc6887#section-11.1
       var pcpBuffer = utils.createArrayBuffer(60, [
         [32, 0, 0x2010000],
@@ -265,7 +265,7 @@ var sendPcpRequest = function (routerIp, privateIp, intPort, extPort, lifetime,
         [16, 42, extPort],
         [16, 54, 0xffff],
       ]);
-      socket.sendTo(pcpBuffer, routerIp, 5351);
+      utils.sendSocket(socket, pcpBuffer, routerIp, 5351);
     });
   });
 

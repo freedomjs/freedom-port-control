@@ -10,13 +10,13 @@ var utils = require('./utils');
 */
 var probeSupport = function (activeMappings) {
   return addMapping(utils.UPNP_PROBE_PORT, utils.UPNP_PROBE_PORT, 120,
-                    activeMappings).then(function (mapping) { 
-        if (mapping.errInfo && 
+                    activeMappings).then(function (mapping) {
+        if (mapping.errInfo &&
             mapping.errInfo.indexOf('ConflictInMappingEntry') !== -1) {
           // This error response suggests that UPnP is enabled
           return true;
         }
-        return mapping.externalPort !== -1; 
+        return mapping.externalPort !== -1;
       });
 };
 
@@ -30,7 +30,7 @@ var probeSupport = function (activeMappings) {
 *                          0 is infinity; a static AddPortMapping request
 * @param {object} activeMappings Table of active Mappings
 * @param {string=} controlUrl Optional: a control URL for the router
-* @return {Promise<Mapping>} A promise for the port mapping object 
+* @return {Promise<Mapping>} A promise for the port mapping object
 *                               mapping.externalPort is -1 on failure
 */
 var addMapping = function (intPort, extPort, lifetime, activeMappings,
@@ -75,9 +75,9 @@ var addMapping = function (intPort, extPort, lifetime, activeMappings,
     }).catch(_handleError);
   }
 
-  // Save the Mapping object in activeMappings on success, and set a timeout 
+  // Save the Mapping object in activeMappings on success, and set a timeout
   // to delete the mapping on expiration
-  // Note: We never refresh for UPnP since 0 is infinity per the protocol and 
+  // Note: We never refresh for UPnP since 0 is infinity per the protocol and
   // there is no maximum lifetime
   function _saveMapping(mapping) {
     // Delete the entry from activeMapping at expiration
@@ -88,7 +88,7 @@ var addMapping = function (intPort, extPort, lifetime, activeMappings,
 
     // If mapping succeeded, attach a deleter function and add to activeMappings
     if (mapping.externalPort !== -1) {
-      mapping.deleter = deleteMapping.bind({}, mapping.externalPort, 
+      mapping.deleter = deleteMapping.bind({}, mapping.externalPort,
                                            activeMappings, controlUrl);
       activeMappings[mapping.externalPort] = mapping;
     }
@@ -102,7 +102,7 @@ var addMapping = function (intPort, extPort, lifetime, activeMappings,
     return mapping;
   }
 
-  // After receiving an AddPortMapping response, set a timeout to delete the 
+  // After receiving an AddPortMapping response, set a timeout to delete the
   // mapping, and add it to activeMappings
   return _handleUpnpFlow().then(_saveMapping);
 };
@@ -118,7 +118,7 @@ var addMapping = function (intPort, extPort, lifetime, activeMappings,
 */
 var deleteMapping = function (extPort, activeMappings, controlUrl) {
   // Do the UPnP flow to delete a mapping, and if successful, remove it from
-  // activeMappings and return true 
+  // activeMappings and return true
   return sendDeletePortMapping(controlUrl, extPort).then(function() {
     delete activeMappings[extPort];
     return true;
@@ -144,7 +144,7 @@ var _getUpnpControlUrl = function () {
           catch(function (err) { return null; });
     }));
   }).then(function (controlUrls) {
-    // We return the first control URL we found; 
+    // We return the first control URL we found;
     // there should always be at least one if we reached this block
     for (var i = 0; i < controlUrls.length; i++) {
       if (controlUrls[i] !== null) { return controlUrls[i]; }
@@ -154,7 +154,7 @@ var _getUpnpControlUrl = function () {
 
 /**
  * A public version of _getUpnpControlUrl that suppresses the Promise rejection,
- * and replaces it with undefined. This is useful outside this module in a 
+ * and replaces it with undefined. This is useful outside this module in a
  * Promise.all(), while inside we want to propagate the errors upwards
  * @public
  * @method getUpnpControlUrl
@@ -173,15 +173,15 @@ var getUpnpControlUrl = function () {
 */
 var sendSsdpRequest = function () {
   var ssdpResponses = [];
-  var socket = freedom['core.udpsocket']();
+  var socket = utils.openSocket();
 
   // Fulfill when we get any reply (failure is on timeout or invalid parsing)
-  socket.on('onData', function (ssdpResponse) {
+  socket.on(utils.socketDataHandler(), function (ssdpResponse) {
     ssdpResponses.push(ssdpResponse.data);
   });
 
   // Bind a socket and send the SSDP request
-  socket.bind('0.0.0.0', 0).then(function (result) {
+  utils.bindSocket(socket, '0.0.0.0', 0, function (result) {
     // Construct and send a UPnP SSDP message
     var ssdpStr = 'M-SEARCH * HTTP/1.1\r\n' +
                   'HOST: 239.255.255.250:1900\r\n' +
@@ -189,7 +189,7 @@ var sendSsdpRequest = function () {
                   'MX: 3\r\n' +
                   'ST: urn:schemas-upnp-org:device:InternetGatewayDevice:1\r\n\r\n';
     var ssdpBuffer = utils.stringToArrayBuffer(ssdpStr);
-    socket.sendTo(ssdpBuffer, '239.255.255.250', 1900);
+    utils.sendSocket(socket, ssdpBuffer, '239.255.255.250', 1900);
   });
 
   // Collect SSDP responses for 3 seconds before timing out
@@ -209,7 +209,7 @@ var sendSsdpRequest = function () {
 * @return {string} The string of the control URL for the router
 */
 var fetchControlUrl = function (ssdpResponse) {
-  // Promise to parse the location URL from the SSDP response, then send a POST 
+  // Promise to parse the location URL from the SSDP response, then send a POST
   // xhr to the location URL to find the router's UPNP control URL
   var _fetchControlUrl = new Promise(function (F, R) {
     var ssdpStr = utils.arrayBufferToString(ssdpResponse);

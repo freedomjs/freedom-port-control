@@ -3,6 +3,7 @@
   "description": "Opens ports through a NAT with NAT-PMP, PCP, and UPnP",
   "version": "0.9.11",
   "author": "Kenny Song <kenny.ysong@gmail.com>",
+  "license": "Apache 2.0",
   "repository": {
     "type": "git",
     "url": "https://github.com/freedomjs/freedom-port-control"
@@ -18,6 +19,7 @@
     "grunt-contrib-jshint": "^0.11.2",
     "ipaddr.js": "^0.1.3"
   },
+  "main": "src/port-control.js",
   "keywords": [
     "freedom.js",
     "port",
